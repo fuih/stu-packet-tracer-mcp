@@ -16,7 +16,8 @@ export interface TerminalTheme {
   readonly chromeBg: string;
   readonly chromeText: string;
   readonly chromeBorder: string;
-  readonly chromeStyle: "pt-tabs" | "macos" | "windows" | "print" | "cmd";
+  readonly chromeStyle: "pt-cli" | "macos" | "windows" | "print" | "pt-cmd";
+  readonly plainText?: boolean;
   readonly promptColor: string;
   readonly successColor: string;
   readonly errorColor: string;
@@ -31,17 +32,18 @@ export const THEMES: Readonly<Record<ThemeName, TerminalTheme>> = {
   "pt-classic": {
     name: "pt-classic",
     background: "#FFFFFF",
-    text: "#111111",
-    border: "#B8C0CC",
-    chromeBg: "#E6EAF0",
-    chromeText: "#1F2937",
-    chromeBorder: "#C5CDD8",
-    chromeStyle: "pt-tabs",
-    promptColor: "#0F172A",
-    successColor: "#15803D",
-    errorColor: "#B91C1C",
-    accentColor: "#1D4ED8",
-    mutedColor: "#64748B",
+    text: "#000000",
+    border: "#C8C8C8",
+    chromeBg: "#F0F0F0",
+    chromeText: "#111111",
+    chromeBorder: "#D0D0D0",
+    chromeStyle: "pt-cli",
+    plainText: true,
+    promptColor: "#000000",
+    successColor: "#000000",
+    errorColor: "#000000",
+    accentColor: "#000000",
+    mutedColor: "#555555",
     annotationBg: "#EFF6FF",
     annotationText: "#1E40AF",
     annotationBorder: "#93C5FD",
@@ -102,18 +104,19 @@ export const THEMES: Readonly<Record<ThemeName, TerminalTheme>> = {
   },
   "pc-cmd": {
     name: "pc-cmd",
-    background: "#0C0C0C",
-    text: "#CCCCCC",
-    border: "#3A3A3A",
-    chromeBg: "#1F1F1F",
-    chromeText: "#F3F4F6",
-    chromeBorder: "#3A3A3A",
-    chromeStyle: "cmd",
-    promptColor: "#FFFFFF",
-    successColor: "#4ADE80",
-    errorColor: "#F87171",
-    accentColor: "#38BDF8",
-    mutedColor: "#888888",
+    background: "#000000",
+    text: "#EAEAEA",
+    border: "#C8C8C8",
+    chromeBg: "#F0F0F0",
+    chromeText: "#111111",
+    chromeBorder: "#D0D0D0",
+    chromeStyle: "pt-cmd",
+    plainText: true,
+    promptColor: "#EAEAEA",
+    successColor: "#EAEAEA",
+    errorColor: "#EAEAEA",
+    accentColor: "#EAEAEA",
+    mutedColor: "#9A9A9A",
     annotationBg: "#1E293B",
     annotationText: "#93C5FD",
     annotationBorder: "#3B82F6",

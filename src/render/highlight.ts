@@ -16,6 +16,9 @@ export interface TextSpan {
  * Default Cisco IOS & Windows Command Prompt syntax highlighting rules.
  */
 export function buildDefaultHighlightRules(theme: TerminalTheme): readonly HighlightRule[] {
+  if (theme.plainText) {
+    return [];
+  }
   return [
     // IOS / Windows prompts at start of line
     {

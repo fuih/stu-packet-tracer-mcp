@@ -5,7 +5,7 @@
   <circle cx="18" cy="17" r="5.5" fill="#FF5F56"/>
   <circle cx="36" cy="17" r="5.5" fill="#FFBD2E"/>
   <circle cx="54" cy="17" r="5.5" fill="#27C93F"/>
-  <text x="324" y="21" text-anchor="middle" font-family="sans-serif" font-size="12.5" font-weight="600" fill="#E5E7EB">R1 - CLI</text>
+  <text x="324" y="21" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12.5" font-weight="600" fill="#E5E7EB">R1 - CLI</text>
   <g font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="14" fill="#D4D4D4">
     <text x="16" y="62" xml:space="preserve"><tspan fill="#4ADE80" font-weight="700">R1#</tspan> show ip route</text>
     <text x="16" y="81" xml:space="preserve">Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP</text>

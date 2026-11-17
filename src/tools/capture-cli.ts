@@ -40,7 +40,7 @@ function buildLines(
 ): string[] {
   const lines: string[] = [];
   if (includePrompt) {
-    lines.push(`${prompt || "Router#"} ${command}`);
+    lines.push(`${prompt || "Router#"}${command}`);
   }
   if (output.length > 0) {
     lines.push(...output.split(/\r?\n/));

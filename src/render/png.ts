@@ -2,6 +2,7 @@ import { Resvg, initWasm } from "@resvg/resvg-wasm";
 import wasmAssetPath from "@resvg/resvg-wasm/index_bg.wasm" with { type: "file" };
 import regularFontPath from "../../assets/fonts/DejaVuSansMono.ttf" with { type: "file" };
 import boldFontPath from "../../assets/fonts/DejaVuSansMono-Bold.ttf" with { type: "file" };
+import sansFontPath from "../../assets/fonts/DejaVuSans.ttf" with { type: "file" };
 
 let initPromise: Promise<void> | null = null;
 let cachedFonts: Uint8Array[] | null = null;
@@ -16,11 +17,12 @@ async function ensureInitialized(): Promise<Uint8Array[]> {
     initPromise = (async () => {
       const wasmBytes = await readAssetBytes(wasmAssetPath);
       await initWasm(wasmBytes);
-      const [regular, bold] = await Promise.all([
+      const [regular, bold, sans] = await Promise.all([
         readAssetBytes(regularFontPath),
         readAssetBytes(boldFontPath),
+        readAssetBytes(sansFontPath),
       ]);
-      cachedFonts = [regular, bold];
+      cachedFonts = [regular, bold, sans];
     })();
   }
   await initPromise;
@@ -53,7 +55,7 @@ export async function renderSvgToPng(
         fontBuffers,
         defaultFontFamily: "DejaVu Sans Mono",
         monospaceFamily: "DejaVu Sans Mono",
-        sansSerifFamily: "DejaVu Sans Mono",
+        sansSerifFamily: "DejaVu Sans",
         loadSystemFonts: false,
       },
     });

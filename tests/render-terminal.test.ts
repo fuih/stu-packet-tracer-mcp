@@ -84,7 +84,7 @@ describe("Terminal SVG Renderer", () => {
     expect(svg).toContain('class="annotations"');
   });
 
-  test("highlights prompts, route codes, ping replies, and timeouts", () => {
+  test("highlights prompts, route codes, ping replies, and timeouts on syntax themes", () => {
     const svgRoute = renderTerminalSvg({
       title: "R1 - CLI",
       lines: SAMPLE_ROUTE_LINES,
@@ -93,13 +93,37 @@ describe("Terminal SVG Renderer", () => {
     expect(svgRoute).toContain('fill="#4ADE80" font-weight="700">R1#</tspan>');
     expect(svgRoute).toContain('fill="#60A5FA" font-weight="700">S*</tspan>');
 
-    const svgPing = renderTerminalSvg({
+    const svgPingDark = renderTerminalSvg({
       title: "PC0 — Command Prompt",
+      lines: SAMPLE_PC_PING_LINES,
+      theme: "dark",
+    });
+    expect(svgPingDark).toContain('fill="#F87171" font-weight="700">Request timed out.</tspan>');
+    expect(svgPingDark).toContain('fill="#4ADE80" font-weight="700">Reply from</tspan>');
+  });
+
+  test("clones native Packet Tracer 9 CLI and Command Prompt UI chrome", () => {
+    const cliSvg = renderTerminalSvg({
+      title: "R1 - CLI",
+      lines: SAMPLE_ROUTE_LINES,
+      theme: "pt-classic",
+    });
+    expect(cliSvg).toContain("IOS Command Line Interface");
+    expect(cliSvg).toContain("Copy");
+    expect(cliSvg).toContain("Paste");
+    expect(cliSvg).toContain("Top");
+    expect(cliSvg).toContain("#0F2B6B");
+
+    const cmdSvg = renderTerminalSvg({
+      title: "PC0 - Command Prompt",
       lines: SAMPLE_PC_PING_LINES,
       theme: "pc-cmd",
     });
-    expect(svgPing).toContain('fill="#F87171" font-weight="700">Request timed out.</tspan>');
-    expect(svgPing).toContain('fill="#4ADE80" font-weight="700">Reply from</tspan>');
+    expect(cmdSvg).toContain("Desktop");
+    expect(cmdSvg).toContain("Programming");
+    expect(cmdSvg).toContain("Command Prompt");
+    expect(cmdSvg).toContain("#0000FF");
+    expect(cmdSvg).toContain("Top");
   });
 
   const themes: Array<{ theme: ThemeName; file: string; title: string; lines: string[] }> = [
