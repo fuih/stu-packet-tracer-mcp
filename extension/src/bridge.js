@@ -1,9 +1,10 @@
 /**
- * Student MCP Bridge — WebView controller (bridge.js)
+ * Student MCP Bridge — TUI WebView controller (bridge.js)
  *
  * Implements Bridge Protocol v1 (long-poll /v1/next + JSON /v1/result with
- * correlation IDs) with automatic fallback to legacy /next polling and
- * exponential reconnect backoff (1s -> 2s -> 5s -> 10s).
+ * correlation IDs) with automatic fallback to legacy /next polling,
+ * exponential reconnect backoff (1s -> 2s -> 5s -> 10s), live latency
+ * sparklines, keyboard shortcuts, and 3 switchable TUI themes.
  */
 (function () {
   "use strict";
@@ -12,17 +13,30 @@
   var LONG_POLL_WAIT_MS = 25000;
   var LEGACY_POLL_MS = 500;
   var MAX_LOG_ENTRIES = 200;
+  var SPARK_LEN = 24;
+  var SPARK_GLYPHS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+  var THEMES = ["claude", "btop", "abtop"];
   var LABEL_RE = /^\s*\/\*\s*([^*][\s\S]*?)\s*\*\/\s*/;
 
   var serverUrlInput = document.getElementById("server-url");
   var tokenInput = document.getElementById("bridge-token");
   var toggleBtn = document.getElementById("toggle-btn");
   var clearBtn = document.getElementById("clear-btn");
+  var themeBtn = document.getElementById("theme-btn");
   var statusDot = document.getElementById("status-dot");
   var statusText = document.getElementById("status-text");
   var protocolBadge = document.getElementById("protocol-badge");
   var lastLabelEl = document.getElementById("last-label");
   var cmdCountEl = document.getElementById("cmd-count");
+  var okCountEl = document.getElementById("ok-count");
+  var errCountEl = document.getElementById("err-count");
+  var healthBarEl = document.getElementById("health-bar");
+  var healthPctEl = document.getElementById("health-pct");
+  var lastMsEl = document.getElementById("last-ms");
+  var avgMsEl = document.getElementById("avg-ms");
+  var sparklineEl = document.getElementById("sparkline");
+  var clockEl = document.getElementById("clock-text");
+  var uptimeEl = document.getElementById("uptime-text");
   var logListEl = document.getElementById("log-list");
   var backoffNoteEl = document.getElementById("backoff-note");
 
@@ -31,8 +45,13 @@
   var retryTimer = null;
   var backoffIndex = 0;
   var wasConnected = false;
-  var protocolMode = null; // "v1" | "legacy" | null
   var commandCount = 0;
+  var okCount = 0;
+  var errCount = 0;
+  var totalLatencyMs = 0;
+  var latencySamples = [];
+  var themeIdx = 0;
+  var startedAt = Date.now();
   var pendingResolvers = {};
 
   function getBaseUrl() {
@@ -44,13 +63,93 @@
     return (tokenInput.value || "").trim();
   }
 
-  function nowTime() {
-    var d = new Date();
-    function pad(n) { return n < 10 ? "0" + n : String(n); }
-    return pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+  function pad2(n) {
+    return n < 10 ? "0" + n : String(n);
   }
 
-  function appendLog(kind, message) {
+  function nowTime() {
+    var d = new Date();
+    return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+  }
+
+  function updateClock() {
+    if (clockEl) clockEl.textContent = nowTime();
+    if (uptimeEl) {
+      var secs = Math.floor((Date.now() - startedAt) / 1000);
+      var h = Math.floor(secs / 3600);
+      var m = Math.floor((secs % 3600) / 60);
+      var s = secs % 60;
+      uptimeEl.textContent = h > 0
+        ? "up " + pad2(h) + ":" + pad2(m) + ":" + pad2(s)
+        : "up " + pad2(m) + ":" + pad2(s);
+    }
+  }
+
+  function renderSparkline() {
+    if (!sparklineEl) return;
+    if (latencySamples.length === 0) {
+      sparklineEl.textContent = "························";
+      return;
+    }
+    var maxVal = 20;
+    for (var i = 0; i < latencySamples.length; i++) {
+      if (latencySamples[i] > maxVal) maxVal = latencySamples[i];
+    }
+    var out = "";
+    var padCount = Math.max(0, SPARK_LEN - latencySamples.length);
+    for (var p = 0; p < padCount; p++) out += "·";
+    for (var j = 0; j < latencySamples.length; j++) {
+      var ratio = Math.min(1, latencySamples[j] / maxVal);
+      var gIdx = Math.min(SPARK_GLYPHS.length - 1, Math.floor(ratio * SPARK_GLYPHS.length));
+      out += SPARK_GLYPHS[gIdx];
+    }
+    sparklineEl.textContent = out;
+  }
+
+  function renderHealth() {
+    if (!healthBarEl || !healthPctEl) return;
+    if (commandCount === 0) {
+      healthBarEl.textContent = "──────────";
+      healthPctEl.textContent = "--%";
+      return;
+    }
+    var pct = Math.round((okCount / commandCount) * 100);
+    var filled = Math.round((pct / 100) * 10);
+    var bar = "";
+    for (var i = 0; i < 10; i++) bar += i < filled ? "█" : "░";
+    healthBarEl.textContent = bar;
+    healthPctEl.textContent = pct + "%";
+  }
+
+  function formatDurationBar(ms) {
+    if (typeof ms !== "number" || isNaN(ms)) return "";
+    if (ms <= 2) return "▏";
+    if (ms <= 8) return "▎";
+    if (ms <= 25) return "▌";
+    if (ms <= 80) return "▊";
+    return "█";
+  }
+
+  function recordCommandMetrics(ok, elapsedMs) {
+    commandCount++;
+    if (ok) okCount++;
+    else errCount++;
+    if (cmdCountEl) cmdCountEl.textContent = String(commandCount);
+    if (okCountEl) okCountEl.textContent = String(okCount);
+    if (errCountEl) errCountEl.textContent = String(errCount);
+
+    var ms = typeof elapsedMs === "number" && !isNaN(elapsedMs) ? Math.max(0, Math.round(elapsedMs)) : 0;
+    totalLatencyMs += ms;
+    latencySamples.push(ms);
+    if (latencySamples.length > SPARK_LEN) latencySamples.shift();
+
+    if (lastMsEl) lastMsEl.textContent = ms + "ms";
+    if (avgMsEl) avgMsEl.textContent = Math.round(totalLatencyMs / commandCount) + "ms";
+    renderSparkline();
+    renderHealth();
+  }
+
+  function appendLog(kind, message, elapsedMs) {
     var row = document.createElement("div");
     row.className = "log-entry";
 
@@ -60,14 +159,28 @@
 
     var tagEl = document.createElement("span");
     tagEl.className = kind === "ok" ? "log-ok" : kind === "err" ? "log-err" : "log-info";
-    tagEl.textContent = kind === "ok" ? "[OK]" : kind === "err" ? "[ERR]" : "[INFO]";
+    tagEl.textContent = kind === "ok" ? "OK" : kind === "err" ? "ERR" : "SYS";
+
+    var msEl = document.createElement("span");
+    msEl.className = "log-ms";
+    if (typeof elapsedMs === "number") {
+      msEl.textContent = String(Math.round(elapsedMs)) + "ms";
+      var barSpan = document.createElement("span");
+      barSpan.className = "log-bar";
+      barSpan.textContent = formatDurationBar(elapsedMs);
+      msEl.appendChild(barSpan);
+    } else {
+      msEl.textContent = "--";
+    }
 
     var msgEl = document.createElement("span");
     msgEl.className = "log-msg";
     msgEl.textContent = message;
+    msgEl.title = message;
 
     row.appendChild(timeEl);
     row.appendChild(tagEl);
+    row.appendChild(msEl);
     row.appendChild(msgEl);
     logListEl.appendChild(row);
 
@@ -83,16 +196,15 @@
   }
 
   function setProtocol(mode) {
-    protocolMode = mode;
     if (mode === "v1") {
       protocolBadge.className = "pill pill-v1";
-      protocolBadge.textContent = "Protocol: v1";
+      protocolBadge.textContent = "v1";
     } else if (mode === "legacy") {
       protocolBadge.className = "pill pill-legacy";
-      protocolBadge.textContent = "Protocol: legacy";
+      protocolBadge.textContent = "legacy";
     } else {
       protocolBadge.className = "pill pill-muted";
-      protocolBadge.textContent = "Protocol: --";
+      protocolBadge.textContent = "v--";
     }
   }
 
@@ -151,9 +263,6 @@
     }
   }
 
-  /**
-   * Callback invoked by main.js after executing a v1 command in the Script Engine.
-   */
   window.__stuBridgeResult = function (payload) {
     if (!payload || !payload.id) return;
     var resolver = pendingResolvers[payload.id];
@@ -223,12 +332,12 @@
     if (backoffIndex < BACKOFF_STEPS_MS.length - 1) backoffIndex++;
 
     if (wasConnected) {
-      appendLog("info", "Disconnected from server (" + reason + "). Reconnecting...");
+      appendLog("info", "Disconnected (" + reason + ") - reconnecting...");
       wasConnected = false;
     }
 
-    setStatus("waiting", "Waiting for server...");
-    backoffNoteEl.textContent = "Retry in " + (delay / 1000) + "s";
+    setStatus("waiting", "Waiting...");
+    backoffNoteEl.textContent = "retry " + (delay / 1000) + "s";
 
     retryTimer = setTimeout(function () {
       retryTimer = null;
@@ -241,10 +350,10 @@
     backoffIndex = 0;
     backoffNoteEl.textContent = "";
     setProtocol(mode);
-    setStatus("connected", "Connected (" + getBaseUrl() + ")");
+    setStatus("connected", "Connected");
     if (!wasConnected) {
       wasConnected = true;
-      appendLog("info", "Connected to stu-packet-tracer-mcp using protocol " + mode + ".");
+      appendLog("info", "Connected to " + getBaseUrl() + " (" + mode + ")");
     }
   }
 
@@ -260,7 +369,7 @@
       }
 
       if (status === 401 || status === 403) {
-        setStatus("error", "Auth/Origin rejected (HTTP " + status + ")");
+        setStatus("error", "Rejected " + status);
         appendLog("err", "Server rejected request (HTTP " + status + "). Check token or origin.");
         scheduleReconnect("HTTP " + status);
         return;
@@ -287,13 +396,11 @@
         lastLabelEl.textContent = label;
 
         executeInScriptEngine(env, function (resultPayload) {
-          commandCount++;
-          cmdCountEl.textContent = String(commandCount);
-          var ms = typeof resultPayload.elapsedMs === "number" ? " (" + resultPayload.elapsedMs + "ms)" : "";
+          recordCommandMetrics(!!resultPayload.ok, resultPayload.elapsedMs);
           if (resultPayload.ok) {
-            appendLog("ok", label + ms);
+            appendLog("ok", label, resultPayload.elapsedMs);
           } else {
-            appendLog("err", label + " -> " + (resultPayload.error || "failed") + ms);
+            appendLog("err", label + " -> " + (resultPayload.error || "failed"), resultPayload.elapsedMs);
           }
           postV1Result(resultPayload, function () {
             if (running) pollV1();
@@ -319,9 +426,8 @@
       if (status === 200 && text) {
         var label = extractLabel({ code: text });
         lastLabelEl.textContent = label;
-        commandCount++;
-        cmdCountEl.textContent = String(commandCount);
-        appendLog("ok", "[legacy] " + label);
+        recordCommandMetrics(true, 1);
+        appendLog("ok", "[legacy] " + label, 1);
         try {
           if (typeof window.$se === "function") {
             window.$se("runCode", text);
@@ -372,7 +478,7 @@
     backoffNoteEl.textContent = "";
     setStatus("idle", "Stopped");
     toggleBtn.textContent = "Start";
-    toggleBtn.className = "btn btn-primary";
+    toggleBtn.className = "tui-btn btn-primary";
     appendLog("info", "Bridge paused by user.");
   }
 
@@ -381,10 +487,17 @@
     running = true;
     backoffIndex = 0;
     toggleBtn.textContent = "Stop";
-    toggleBtn.className = "btn btn-danger";
+    toggleBtn.className = "tui-btn btn-danger";
     setStatus("waiting", "Connecting...");
     appendLog("info", "Starting bridge against " + getBaseUrl() + "...");
     detectAndStart();
+  }
+
+  function cycleTheme() {
+    themeIdx = (themeIdx + 1) % THEMES.length;
+    var name = THEMES[themeIdx];
+    document.documentElement.setAttribute("data-theme", name);
+    if (themeBtn) themeBtn.textContent = "Theme: " + name;
   }
 
   toggleBtn.addEventListener("click", function () {
@@ -396,9 +509,38 @@
     logListEl.innerHTML = "";
   });
 
-  // Start automatically on open
+  if (themeBtn) {
+    themeBtn.addEventListener("click", cycleTheme);
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    var tag = ev.target && ev.target.tagName ? ev.target.tagName.toLowerCase() : "";
+    if (tag === "input" || tag === "textarea") {
+      if (ev.key === "Escape") ev.target.blur();
+      return;
+    }
+    var k = (ev.key || "").toLowerCase();
+    if (k === "s") {
+      if (running) stopBridge();
+      else startBridge();
+    } else if (k === "c") {
+      logListEl.innerHTML = "";
+    } else if (k === "t") {
+      cycleTheme();
+    } else if (k === "u") {
+      ev.preventDefault();
+      serverUrlInput.focus();
+      serverUrlInput.select();
+    }
+  });
+
+  // Initialize TUI clock, sparkline, and auto-connect
+  updateClock();
+  setInterval(updateClock, 1000);
+  renderSparkline();
+  renderHealth();
   toggleBtn.textContent = "Stop";
-  toggleBtn.className = "btn btn-danger";
-  appendLog("info", "Student MCP Bridge initialized.");
+  toggleBtn.className = "tui-btn btn-danger";
+  appendLog("info", "stu-pt-bridge TUI initialized (themes: claude / btop / abtop).");
   detectAndStart();
 })();
