@@ -1,631 +1,563 @@
-# Referencia de tools MCP
+# stu-packet-tracer-mcp Tool Reference
 
-Este documento es la referencia auto-generada de las 57 tools MCP que expone `packet-tracer-mcp`. El orden coincide con el registro real en `src/tools/index.ts` (la lista `ALL_TOOLS`), agrupado por las secciones que marcan los comentarios de ese fichero.
+> **Auto-generated file.** Do not edit manually — run `bun run docs:tools` to regenerate.
 
-## Índice
+Total registered tools: **57**. All input schemas are strict (`additionalProperties: false`).
 
-- [Pre-flight planning](#pre-flight-planning)
-- [Health + catalog](#health--catalog)
-- [Read-only inspection](#read-only-inspection)
-- [Per-element authoring](#per-element-authoring)
-- [Read-only diagnostics on live devices](#read-only-diagnostics-on-live-devices)
-- [Recipe-level authoring](#recipe-level-authoring)
-- [Persistence](#persistence)
-- [CLI access](#cli-access)
-- [Simulation / ops](#simulation--ops)
-- [.pkt persistence](#pkt-persistence)
-- [Escape hatch](#escape-hatch)
+## Categories
 
-## Pre-flight planning
+- [Catalog & Status](#catalog-status) (5)
+- [Captures & Visuals](#captures-visuals) (1)
+- [CLI & Diagnostics](#cli-diagnostics) (4)
+- [Simulation & Testing](#simulation-testing) (5)
+- [Topology & Canvas](#topology-canvas) (13)
+- [Inspection & Analysis](#inspection-analysis) (11)
+- [Configuration & Recipes](#configuration-recipes) (10)
+- [Files & Snapshots](#files-snapshots) (8)
 
-### `pt_plan_review`
+## Catalog & Status
 
-> Validate a topology plan BEFORE touching the canvas. The LLM declares devices, links and LAN roles; the tool returns a structured review with errors (will definitely fail), warnings (likely wrong) and a human-readable summary.
+### `pt_bridge_status` *(offline)*
 
-**Parámetros:**
-- `devices` (array, requerido) — lista completa de dispositivos planificados con `name`, `role` y `model` opcional.
-- `links` (array, requerido) — cables planificados con `a`, `b`, `cable` y `purpose` opcional.
-- `lans` (array, opcional) — declaración de cada LAN como `user` o `transit` con sus endpoints.
-- `notes` (string, opcional) — contexto libre del brief o intención del usuario.
+Check whether the Packet Tracer bridge extension is connected and ready. Use this first before running lab commands or troubleshooting connection problems. Also prints the emergency paste-in bootstrap snippet if you do not have the .pts extension installed.
 
-**Notas:** No toca el canvas ni la bridge. Es validación pura. Obligatoria en topologías con tres o más routers o cuando el usuario aporta un diagrama. La salida está pensada para presentarla literal al usuario antes de seguir con `pt_add_device`.
+_No parameters._
 
-## Health + catalog
+### `pt_list_devices` *(offline)*
 
-### `pt_bridge_status`
+List all Packet Tracer device models supported by stu-packet-tracer-mcp, along with their ports and shortcut aliases. Use this before calling pt_add_device to pick the exact model name or alias.
 
-> Report whether the packet-tracer-mcp bridge is currently being polled by Packet Tracer, and emit the bootstrap snippet that activates the polling loop inside PT's webview.
-
-**Parámetros:** ninguno.
-
-**Notas:** No requiere bridge conectada (precisamente sirve para diagnosticarla). Devuelve el snippet de bootstrap que hay que pegar una vez por sesión en el editor de la webview.
-
-### `pt_list_devices`
-
-> Enumerate the device models that packet-tracer-mcp knows how to instantiate, with their port lists and the alias shortcuts accepted by other tools.
-
-**Parámetros:** ninguno.
-
-**Notas:** Catálogo estático del lado servidor. Útil antes de llamar a `pt_add_device` para conocer modelos válidos y los alias que aceptan otras tools.
+_No parameters._
 
 ### `pt_list_modules`
 
-> Enumerate hardware modules. Without `device`: PT's full catalog (filterable). With `device`: the modules physically installed in that chassis right now (slotPath → name).
+Enumerate hardware modules. Without `device`: PT's full catalog (filterable). With `device`: the modules physically installed in that chassis right now (slotPath → name).
 
-**Parámetros:**
-- `filter` (string, opcional) — substring sin distinguir mayúsculas para el modo catálogo. Se ignora en modo instalado.
-- `limit` (number, opcional) — máximo de filas en modo catálogo (1–500, por defecto 50).
-- `device` (string, opcional) — si se indica, lista los módulos físicamente presentes en ese chasis.
-
-**Notas:** Dos modos en una misma tool. Requiere bridge conectada (incluso para el catálogo, que se obtiene desde la HardwareFactory de PT).
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `filter` | string | No | Catalog mode: case-insensitive substring of the module name. Ignored in installed mode. (default: `""`) |
+| `limit` | integer | No | Catalog mode: max rows. Ignored in installed mode. (default: `50`) |
+| `device` | string | No | Installed mode: device name. When set, lists modules physically present in that chassis instead of the global catalog. |
 
 ### `pt_list_recipes`
 
-> Enumerate the topology recipes pt_cook_topology can build, with their parameter shape.
+Enumerate the topology recipes pt_cook_topology can build, with their parameter shape.
 
-**Parámetros:** ninguno.
+_No parameters._
 
-**Notas:** Lista las recipes registradas (`chain`, `star`, `branch_office`, etc.) con su `paramHint`. Pensada para preparar la llamada posterior a `pt_cook_topology` o `pt_forecast`.
+### `pt_plan_review`
 
-### `pt_list_snapshots`
+Validate a topology plan BEFORE touching the canvas. The LLM declares devices, links and LAN roles; the tool returns a structured review with errors (will definitely fail), warnings (likely wrong) and a human-readable summary. MANDATORY for any topology with ≥3 routers or whenever the user supplies a diagram. Present the output VERBATIM to the user and wait for confirmation before calling pt_add_device. This is the single biggest leverage to avoid the common mistakes (Gigabit on WAN exterior, PCs on transit LANs, ad-hoc layout).
 
-> List every persisted canvas snapshot, sorted from newest to oldest.
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `devices` | object[] | Yes | Every device you plan to create. |
+| `links` | object[] | Yes | Every cable you plan to create. |
+| `lans` | object[] | No | Optional but recommended: declare each LAN's role (user vs transit) and which endpoints belong to it. Lets the validator catch the common mistake of adding PCs to a transit segment. (default: `[]`) |
+| `notes` | string | No | Free-form context: the brief, the user's intent, anything that would help a human reader confirm the plan. |
 
-**Parámetros:** ninguno.
-
-**Notas:** Lee el directorio de snapshots persistidos, no toca PT. Útil antes de `pt_load_snapshot` o `pt_diff_snapshots`.
-
-## Read-only inspection
-
-### `pt_query_topology`
-
-> Snapshot the live topology in Packet Tracer: returns name, model, classname and coordinates for every user-placed device.
-
-**Parámetros:** ninguno.
-
-**Notas:** Solo lectura. Llamada IPC ligera con `listDevicesJs`; no captura puertos ni cables (para eso, `pt_inspect_canvas`).
-
-### `pt_get_device_details`
-
-> Inspect a single device: model, type, power state, and live port-by-port snapshot (IP, mask, connection state).
-
-**Parámetros:**
-- `name` (string, requerido) — nombre exacto del dispositivo a inspeccionar.
-
-**Notas:** Solo lectura. Devuelve modelo, tipo, estado de power y la tabla de puertos (IP/máscara/estado de enlace).
-
-### `pt_inspect_canvas`
-
-> Snapshot the live workspace and report duplicate IPs, unaddressed router uplinks, mismatched router-peer subnets, and similar findings. Read-only.
-
-**Parámetros:** ninguno.
-
-**Notas:** Pasa el snapshot por las reglas de `canvas/inspect.ts`. Útil antes de aplicar recipes o tras editar a mano.
-
-### `pt_explain_canvas`
-
-> Render a human-readable narration of the live workspace: inventory counts, per-router subnets, dangling addresses. Read-only.
-
-**Parámetros:** ninguno.
-
-**Notas:** Genera una narración en lenguaje natural a partir del snapshot. Pensada para presentar al usuario el estado actual antes de seguir.
-
-### `pt_forecast`
-
-> Dry-run estimator. Build the blueprint for a recipe and report what it would allocate, without touching the live canvas.
-
-**Parámetros:**
-- `recipe` (string, requerido) — clave de la recipe (ver `pt_list_recipes`).
-- `params` (record, opcional) — parámetros específicos de la recipe.
-
-**Notas:** No requiere bridge. Construye el blueprint en memoria y reporta dispositivos, cables e IPs que asignaría.
-
-### `pt_generate_configs`
-
-> Offline generator. Builds a recipe blueprint and synthesises the IOS CLI each device would receive — without touching PT or the bridge.
-
-**Parámetros:**
-- `recipe` (string, requerido) — clave de la recipe.
-- `params` (record, opcional) — parámetros de la recipe.
-- `format` (enum, opcional) — `summary` (informe humano), `json` (estructura completa) o `concat` (configs IOS concatenadas, por defecto `summary`).
-
-**Notas:** Útil para documentación, material de aula o para replicar el lab en hardware real. Endpoints (PCs, APs, teléfonos) reciben notas en lenguaje natural en lugar de CLI.
-
-## Per-element authoring
-
-### `pt_add_device`
-
-> Place a single device in the active Logical workspace and rename it to the requested name.
-
-**Parámetros:**
-- `name` (string, requerido) — nombre final del dispositivo (p. ej. `R1`).
-- `model` (string, requerido) — modelo PT o alias (ver `pt_list_devices`).
-- `x` (number, opcional) — coordenada X. Si se omite, se aplica auto-grid por categoría.
-- `y` (number, opcional) — coordenada Y. Si se omite, se aplica auto-grid.
-
-**Notas:** Recomendado dejar `x`/`y` en blanco y rematar con `pt_auto_layout`. Las filas por categoría se documentan en la propia descripción (routers arriba, switches en medio, endpoints abajo).
-
-### `pt_add_module`
-
-> Install a hardware module (NIM-2T, HWIC-2T, NIM-ES2-4, ...) into a router slot. Idempotent: if the slot already holds the requested module, returns success without touching the chassis.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del router que recibe el módulo.
-- `slot` (string, requerido) — ruta `chassis/bay`, p. ej. `0/1`.
-- `module` (string, requerido) — modelo del módulo (`NIM-2T`, `HWIC-2T`, `NIM-ES2-4`, etc.).
-
-**Notas:** Internamente apaga el router, inserta el módulo y reanuda el boot saltándose el wizard. Idempotente: si la bahía ya tiene el módulo pedido, no hace nada. Valida la ruta de bahía contra el catálogo del chasis antes de enviar.
-
-### `pt_create_link`
-
-> Cable two existing devices together. Cable defaults to copper straight-through; use 'cross' for switch trunks, 'serial' for WAN P2P (requires HWIC-2T), 'fiber', 'console' or 'coaxial' as needed.
-
-**Parámetros:**
-- `device_a` (string, requerido) — primer extremo.
-- `port_a` (string, requerido) — nombre completo de puerto en `device_a`.
-- `device_b` (string, requerido) — segundo extremo.
-- `port_b` (string, requerido) — nombre completo de puerto en `device_b`.
-- `cable` (enum, opcional) — `straight` (por defecto), `cross`, `fiber`, `serial`, `console`, `coaxial`.
-- `confirm_internal_lan` (boolean, opcional) — flag obligatorio si se intenta cablear dos routers con `straight`/`cross`.
-
-**Notas:** Por defecto rechaza Ethernet entre dos routers sin confirmación explícita (el error más típico de los LLMs en labs académicos). El cable `console` se rechaza si los puertos no parecen `Console`/`RS-232`. Tras un cable serial recuerda configurar `clock rate` en el lado DCE. Mantiene un registro local en `linkRegistry` porque la API JS de Link en PT 9 es opaca.
-
-### `pt_delete_device`
-
-> Remove a device (and all of its links) from the active workspace. Self-verifies the deletion by re-snapshotting the topology.
-
-**Parámetros:**
-- `name` (string, requerido) — nombre exacto a eliminar.
-
-**Notas:** Tras `removeDevice`, vuelve a listar para confirmar. Limpia las entradas asociadas en `linkRegistry`.
-
-### `pt_delete_link`
-
-> Remove the cable attached to one specific device port. Use this when you need to re-cable without deleting either device.
-
-**Parámetros:**
-- `device` (string, requerido) — uno de los dos extremos del cable.
-- `port` (string, requerido) — puerto de ese dispositivo cuyo cable hay que cortar.
-
-**Notas:** Cualquiera de los dos extremos sirve, PT localiza el cable a partir de uno solo. Limpia la pareja correspondiente en `linkRegistry`.
-
-### `pt_move_device`
-
-> Reposition a device on the logical canvas via Device.moveToLocation(x, y).
-
-**Parámetros:**
-- `name` (string, requerido) — dispositivo a mover.
-- `x` (number, requerido) — nueva X en el canvas lógico.
-- `y` (number, requerido) — nueva Y en el canvas lógico.
-
-**Notas:** Solo cambia coordenadas; no toca cableado ni configuración. Para reorganizar muchos a la vez, usar `pt_auto_layout`.
-
-### `pt_auto_layout`
-
-> Re-grid the entire live canvas into a clean topology-aware layout.
-
-**Parámetros:**
-- `dryRun` (boolean, opcional) — si es `true`, devuelve los movimientos planificados sin aplicarlos.
-
-**Notas:** Lee el canvas, clasifica cada dispositivo y asigna coordenadas por fila de categoría más alineamiento de columna con el padre (switches con su router, endpoints con su switch). Idempotente: ejecutarla dos veces sobre el mismo canvas es un no-op.
-
-### `pt_rename_device`
-
-> Rename a device. Refuses if the new name is already taken so you don't accidentally collapse two devices into one.
-
-**Parámetros:**
-- `old_name` (string, requerido) — nombre actual.
-- `new_name` (string, requerido) — nombre nuevo deseado.
-
-**Notas:** Mantiene el `linkRegistry` actualizado. Si `old_name === new_name` devuelve sin tocar nada.
-
-### `pt_set_pc`
-
-> Configure an endpoint (PC, laptop, server) for static IP or DHCP. In static mode you must pass ip+mask; gateway is optional.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del endpoint.
-- `mode` (enum, requerido) — `static` o `dhcp`.
-- `port` (string, opcional) — puerto a configurar (por defecto `FastEthernet0`).
-- `ip` (string, opcional) — IPv4, obligatorio si `mode='static'`.
-- `mask` (string, opcional) — máscara, obligatoria si `mode='static'`.
-- `gateway` (string, opcional) — gateway por defecto, solo modo estático.
-
-**Notas:** Solo aplica a endpoints (PC-PT, Laptop-PT, Server-PT); routers se configuran por CLI. En modo estático valida que `ip` y `mask` estén presentes.
-
-### `pt_set_device_power`
-
-> Toggle a device's power switch (Device.setPower). Idempotent: returns 'already' when the requested state is already in effect. After power-on the boot dialog is dismissed via skipBoot.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del dispositivo en el canvas.
-- `on` (boolean, requerido) — estado objetivo (`true`=encendido).
-
-**Notas:** Idempotente. Tras encender, salta el wizard de boot automáticamente.
-
-### `pt_add_canvas_annotation`
-
-> Decorate the canvas with a note, line, or circle (LogicalWorkspace.addNote/drawLine/drawCircle). Returns the new annotation's UUID.
-
-**Parámetros:**
-- `kind` (enum, requerido) — `note`, `line` o `circle`.
-- `x`, `y` (number, requerido) — origen (note/circle) o `x1`,`y1` (line).
-- `x2`, `y2` (number, opcional) — segundo punto para `line`.
-- `radius` (number, opcional) — radio en píxeles para `circle`.
-- `text` (string, opcional) — contenido del `note`.
-- `font_size` (int, opcional) — tamaño de fuente del note (6–72, por defecto 12).
-- `thickness` (int, opcional) — grosor de stroke para line/circle (1–20, por defecto 2).
-- `r`, `g`, `b` (int, opcional) — RGB (0–255, por defecto 0).
-- `alpha` (int, opcional) — alfa (0–255, por defecto 255).
-
-**Notas:** Devuelve el UUID asignado por PT para futuras referencias. Cada `kind` exige sus propios campos (ver validaciones en runtime).
-
-### `pt_manage_clusters`
-
-> Inspect and prune logical clusters on the canvas. `list` returns the cluster tree; `remove` deletes a cluster by id; `uncluster` dissolves it while keeping its members.
-
-**Parámetros:**
-- `action` (enum, requerido) — `list`, `remove` o `uncluster`.
-- `cluster_id` (string, opcional) — ID del cluster para `remove`/`uncluster`.
-- `keep_contents` (boolean, opcional) — en `remove`, mantener los hijos en el canvas (por defecto `true`).
-
-**Notas:** Solo lectura y poda. La creación programática de clusters no es alcanzable desde la IPC de PT 9 porque depende de la selección en la UI.
-
-## Read-only diagnostics on live devices
-
-### `pt_inspect_ports`
-
-> Live per-port status: link presence, isPortUp, isProtocolUp, MAC, IP/mask, wireless flag — read directly from the Port objects.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del dispositivo.
-- `onlyLinked` (boolean, opcional) — filtrar a puertos con cable (por defecto `false`).
-
-**Notas:** Información más cruda que `pt_get_device_details`: estado L1/L2 puerto a puerto.
-
-### `pt_read_vlans`
-
-> Read the live VLAN database of a switch via VlanManager (id, name, default flag, MAC table size).
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del switch.
-
-**Notas:** Si el dispositivo no expone `VlanManager` (no es L2/L3), devuelve un error transparente.
-
-### `pt_read_acl`
-
-> Read the live ACLs of a router via AclProcess: per-ACL canonical commands as PT would render them in 'show running-config | section access-list'.
-
-**Parámetros:**
-- `device` (string, requerido) — router (o cualquier dispositivo con `AclProcess`).
-
-**Notas:** No depende de la CLI; lee los objetos ACL nativos. Si el dispositivo no tiene `AclProcess`, error transparente.
-
-### `pt_show_bgp_routes`
-
-> Run `show ip bgp` on a router and parse the BGP table into rows (status, network, next-hop, metric, localpref, weight, path).
-
-**Parámetros:**
-- `device` (string, requerido) — router corriendo BGP.
-- `vrf` (string, opcional) — nombre de VRF; si no se pone, usa la tabla global.
-
-**Notas:** PT 9 no expone `BgpProcess` por JS, así que esta es la única forma de inspeccionar el estado real de BGP. Detecta `% BGP not active` y errores de parser, con fallback a `runShowRunning` cuando IOS rechaza `terminal length 0`.
-
-### `pt_read_project_metadata`
-
-> Read NetworkFile metadata of the .pkt currently open in PT: description, file version, and the on-disk filename if it has been saved.
-
-**Parámetros:** ninguno.
-
-**Notas:** Solo lectura. Si el fichero no se ha guardado aún, devuelve `(unsaved)`.
-
-## Recipe-level authoring
-
-### `pt_cook_topology`
-
-> Build a recipe's blueprint and apply it to the live workspace: places devices, wires links, addresses ports, configures routing. Idempotent against partial state.
-
-**Parámetros:**
-- `recipe` (string, requerido) — clave de la recipe (`chain`, `star`, `branch_office`, etc.).
-- `params` (record, opcional) — parámetros de la recipe.
-
-**Notas:** Mutación masiva del canvas. Idempotente frente a estado parcial: si parte de la topología ya existe, completa lo que falta.
-
-### `pt_mend_canvas`
-
-> Inspect the live workspace and apply safe, conservative repairs (e.g. powering on devices that have active links). Reports remaining issues that need a human decision.
-
-**Parámetros:** ninguno.
-
-**Notas:** Solo aplica reparaciones seguras y conservadoras. Lo demás se reporta para que decida un humano.
-
-### `pt_apply_switching`
-
-> Apply L2 switching intents (VLANs, trunks, port-security, EtherChannel) to switches on the live canvas. Each helper groups CLI per device and pushes one bulk per switch.
-
-**Parámetros:**
-- `vlans` (array, opcional) — definiciones de VLAN y puertos de acceso por switch.
-- `trunks` (array, opcional) — configuración de puertos trunk por switch.
-- `portSecurity` (array, opcional) — reglas de port-security por switch.
-- `etherChannels` (array, opcional) — grupos EtherChannel (>=2 puertos) por switch.
-
-**Notas:** Cada bloque se agrupa por switch y se envía como un único bulk CLI. EtherChannel acepta `switchModel` para detectar IE-9320 (que dropea `channel-group`) antes de mandar nada a PT. Para trunks usa CLI puro (la API nativa `addTrunkVlans` no emite `switchport trunk allowed vlan` en running-config).
-
-### `pt_apply_services`
-
-> Apply L3 services (ACLs, NAT, DHCP server/relay, NTP, Syslog) to the live canvas. Each block is grouped per device and pushed as one bulk per service.
-
-**Parámetros:**
-- `acls` (array, opcional) — ACLs estándar/extendidas, opcionalmente bound a interfaces.
-- `nat` (array, opcional) — roles NAT, statics, pools y overload por dispositivo.
-- `dhcpPools` (array, opcional) — pools DHCP del router (incluye `tftpServer` para option-150).
-- `dhcpRelays` (array, opcional) — `helper-address` por interfaz.
-- `ntp` (array, opcional) — servidores NTP por dispositivo.
-- `syslog` (array, opcional) — hosts y trap-level por dispositivo.
-
-**Notas:** Cubre también voice VLAN-related cosas indirectamente vía DHCP relay y option-150. NTP y syslog aceptan `routerModel` para fallar rápido en 1941 (PT 9 retiene solo el último `ntp server` y rechaza `logging trap` con número).
-
-### `pt_configure_server_dhcp`
-
-> Configure DHCP service on a Server-PT device using the native IPC API.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del Server-PT (ya colocado en el canvas).
-- `port` (string, opcional) — puerto donde corre el servicio (por defecto `FastEthernet0`).
-- `enable` (boolean, opcional) — encender/apagar el servicio DHCP.
-- `pools` (array, opcional) — pools a crear o actualizar; idempotente por nombre.
-- `removePools` (array, opcional) — pools a eliminar primero.
-- `exclusions` (array, opcional) — rangos excluidos a nivel de puerto.
-
-**Notas:** Server-PT NO expone setters para TFTP/option-150, dominio ni boot file (limitaciones documentadas en la propia descripción). Si necesitas option-150 (típico para teléfonos IP), usa `pt_apply_services` con `dhcpPools[].tftpServer` y deja que el router haga de DHCP.
-
-### `pt_configure_subinterface`
-
-> Build router-on-a-stick: configure 802.1Q subinterfaces on a router's parent interface (one block per VLAN).
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del router.
-- `parent` (string, requerido) — interfaz padre completa (p. ej. `GigabitEthernet0/0`).
-- `subinterfaces` (array, requerido) — uno o más bloques con `vlan`, `ip`, `mask` y `description` opcional.
-
-**Notas:** Hace `no shutdown` del padre antes de configurar las subinterfaces (las hijas heredan el L1 del padre). Rechaza VLANs duplicadas en el mismo padre. Solo válido para Gi/Fa; serial usa otros encapsulamientos.
-
-### `pt_apply_wireless`
-
-> Apply wireless SSID/security on APs and associate wireless clients through Packet Tracer's native WirelessServer/WirelessClient IPC processes.
-
-**Parámetros:**
-- `aps` (array, opcional) — SSID/seguridad por AP (canal, VLAN, PSK, etc.).
-- `clients` (array, opcional) — asociaciones de clientes wireless.
-
-**Notas:** Recordar el dead-end documentado en MEMORY: la API JS persiste `setSsid/auth/key` pero nunca dispara la asociación radio en PT 9, así que los clientes pueden no ver APs aunque la config quede grabada.
-
-### `pt_apply_voip`
-
-> Configure CME (telephony-service / ephone-dn / ephone) on a router and voice VLANs on an access switch through IOS CLI.
-
-**Parámetros:**
-- `cme` (array, opcional) — bloques `telephony-service` por router.
-- `ephoneDns` (array, opcional) — extensiones `ephone-dn`.
-- `ephones` (array, opcional) — registros de teléfonos referenciando los `dnTag`.
-- `voiceVlans` (array, opcional) — voice/data VLAN por puerto de switch.
-
-**Notas:** En PT 9, los routers arrancan con `ipbasek9`; el comando `telephony-service` no aparece sin `uck9`. Asegúrate de tener la licencia activada antes de aplicar CME.
-
-### `pt_apply_ipv6`
-
-> Configure dual-stack IPv6 on routers (unicast-routing, interface addresses, OSPFv3, static routes) and IPv6 hosts on PCs/laptops/servers.
-
-**Parámetros:**
-- `unicastRouting` (boolean, opcional) — emite `ipv6 unicast-routing` (por defecto `true`).
-- `interfaces` (array, opcional) — direcciones IPv6 por interfaz, con OSPFv3 opcional.
-- `ospf` (array, opcional) — procesos OSPFv3 por router.
-- `staticRoutes` (array, opcional) — rutas estáticas IPv6.
-- `endpoints` (array, opcional) — host config IPv6 en PCs/Laptops/Servers vía `ipv6config`.
-
-**Notas:** Aplica todo por CLI excepto la configuración de hosts, que va por `ipv6config` del endpoint.
-
-### `pt_apply_advanced_routing`
-
-> Apply advanced routing intents (BGP, HSRP, IGP extras like passive-interface and default-information originate) to routers on the live canvas.
-
-**Parámetros:**
-- `bgp` (array, opcional) — bloques `router bgp <asn>` con neighbors/networks/redistribute.
-- `hsrp` (array, opcional) — `standby <group> ip <vip>` por interfaz, con priority/preempt.
-- `igpExtras` (array, opcional) — directivas extras para procesos OSPF/EIGRP/RIP existentes.
-
-**Notas:** Cada bloque escribe `running` → `startup` por dispositivo. Aplica los IGP extras antes que BGP/HSRP para que las directivas convivan con el proceso ya creado.
-
-## Persistence
-
-### `pt_save_snapshot`
-
-> Capture the current live workspace and persist it to disk under the given name. Useful for diff/audit later.
-
-**Parámetros:**
-- `name` (string, requerido) — identificador de snapshot. Solo letras, dígitos, punto, guion y guion bajo.
-
-**Notas:** Persiste en el directorio de snapshots del servidor (no es el `.pkt` de PT, es el modelo del canvas que mantiene packet-tracer-mcp).
-
-### `pt_load_snapshot`
-
-> Load a saved snapshot and diff it against the live workspace.
-
-**Parámetros:**
-- `name` (string, requerido) — identificador del snapshot a cargar.
-
-**Notas:** No restaura nada, solo compara. Reporta dispositivos/puertos/cables añadidos, eliminados y cambiados desde la captura.
-
-### `pt_diff_snapshots`
-
-> Compare two snapshots (or one snapshot vs the live canvas) and describe what changed.
-
-**Parámetros:**
-- `before` (string, requerido) — nombre de snapshot guardado, o el literal `live`.
-- `after` (string, opcional) — nombre o `live` (por defecto `live`).
-
-**Notas:** Si los dos lados son `live`, lo detecta y devuelve un mensaje en lugar de capturar dos veces (que daría diff vacío con ruido).
-
-## CLI access
-
-### `pt_run_cli`
-
-> Send a CLI command to a router or switch and return the slice of console output produced by it.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del router o switch.
-- `command` (string, requerido) — comando CLI (p. ej. `show ip interface brief`).
-- `mode` (string, opcional) — pista de modo (`""`, `enable`, `global`); cadena vacía auto-detecta.
-
-**Notas:** Para una única línea. Para bloques completos (configuraciones), usa `pt_run_cli_bulk`.
-
-### `pt_run_cli_bulk`
-
-> Push a multi-line CLI block (e.g. an OSPF/EIGRP stanza or a sequence of `ip nat` rules) to a device.
-
-**Parámetros:**
-- `device` (string, requerido) — nombre del dispositivo.
-- `commands` (string, requerido) — bloque multilínea; las líneas vacías se ignoran.
-- `tail_chars` (int, opcional) — tope de caracteres a devolver del transcript (100–20000, por defecto 2000).
-
-**Notas:** Aplica un filtro consciente del modelo: para 2950/2960/3650/IE-3400/IE-9320 elimina automáticamente las líneas `switchport trunk encapsulation` (que esos parsers rechazan). 3560 sí las acepta y no se filtran.
-
-## Simulation / ops
-
-### `pt_ping`
-
-> Run `ping <target>` on a device (PC or router) and return the parsed result.
-
-**Parámetros:**
-- `device` (string, requerido) — origen del ping.
-- `target` (string, requerido) — IP destino (IPv4 o IPv6).
-- `timeout_ms` (int, opcional) — espera máxima (5000–60000, por defecto 25000).
-
-**Notas:** Auto-detecta el formato de salida PC vs router y devuelve sent/received/lost/successRate más el transcript crudo.
-
-### `pt_traceroute`
-
-> Run `traceroute`/`tracert` on a device and return the parsed hop list.
-
-**Parámetros:**
-- `device` (string, requerido) — origen.
-- `target` (string, requerido) — IP destino.
-- `timeout_ms` (int, opcional) — espera máxima (15000–120000, por defecto 60000).
-
-**Notas:** Envía los dos nombres del comando para cubrir PC y router; el parser ignora el que rechaza el dispositivo.
-
-### `pt_show_running`
-
-> Capture `show running-config` (optionally filtered by `| section`) on one or more devices.
-
-**Parámetros:**
-- `devices` (array, requerido) — entre 1 y 20 dispositivos a volcar.
-- `section` (string, opcional) — patrón para `| section` (p. ej. `ipv6`, `interface GigabitEthernet0/0`).
-- `tail_chars` (int, opcional) — tope por dispositivo (1000–20000, por defecto 6000).
-
-**Notas:** Útil para snapshots de estado, diffs entre recipes o confirmar que un applier aterrizó.
-
-### `pt_simulation_mode`
-
-> Toggle PT between Realtime and Simulation modes via the RSSwitch widget.
-
-**Parámetros:**
-- `mode` (enum, requerido) — `simulation` o `realtime`.
-
-**Notas:** Lee el estado de vuelta vía `SimulationPanel.isPlaying` para que el caller tenga confirmación verificable. Combinar con `pt_send_pdu` y `pt_simulation_play`.
-
-### `pt_simulation_play`
-
-> Trigger one of the SimulationPanel buttons (play/back/forward/reset).
-
-**Parámetros:**
-- `action` (enum, requerido) — `play`, `back`, `forward` o `reset`.
-
-**Notas:** Solo tiene efecto si PT ya está en Simulation mode (llamarlo en Realtime es no-op).
-
-### `pt_send_pdu`
-
-> Originate a Simple PDU (ICMP echo) from one device to another via UserCreatedPDU.addSimplePdu.
-
-**Parámetros:**
-- `source` (string, requerido) — dispositivo origen.
-- `dest` (string, requerido) — NOMBRE del dispositivo destino (no acepta IPs).
-- `fire` (boolean, opcional) — si `true` (por defecto), dispara y luego borra del scenario list para no dejar traza.
-- `switch_to_simulation` (boolean, opcional) — si `true` (por defecto), conmuta a Simulation antes de disparar.
-
-**Notas:** PT solo acepta nombres de dispositivo, no IPs, en `addSimplePdu`. Devuelve el índice asignado en el scenario list.
+## Captures & Visuals
 
 ### `pt_screenshot`
 
-> Capture the Logical workspace as a PNG/JPG file via LogicalWorkspace.getWorkspaceImage.
+Capture the Packet Tracer Logical workspace canvas as a PNG or JPG image. Use this to include a topology diagram in your lab report. Saves the image to disk and returns the absolute file path.
 
-**Parámetros:**
-- `format` (enum, opcional) — `PNG` (por defecto) o `JPG`.
-- `output_path` (string, opcional) — ruta de salida; si es relativa se resuelve contra `docs/screenshots/`.
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `format` | `"PNG"` \| `"JPG"` | No | Image format. PNG is lossless and recommended for lab reports. (default: `"PNG"`) |
+| `output_path` | string | No | Output file path. Relative paths resolve against STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
 
-**Notas:** PT serializa la imagen en base64, el servidor la decodifica y la escribe en disco. Si `output_path` se omite, el nombre incluye timestamp.
+## CLI & Diagnostics
 
-### `pt_clear_canvas`
+### `pt_run_cli`
 
-> Wipe the entire PT canvas (File > New) via AppWindow.fileNew. DESTRUCTIVE: removes every device, link, note and PDU in the active workspace.
+Execute a Cisco IOS CLI command on a router or switch and return its console output. Automatically handles initial configuration prompts, privilege elevation, and --More-- pagination without losing output. Syslog events emitted during command execution are separated into structured logs.
 
-**Parámetros:**
-- `confirm` (literal `true`, requerido) — flag explícito para evitar wipes accidentales.
-- `prompt_user` (boolean, opcional) — si `true`, PT muestra el modal de "guardar antes de nuevo" (por defecto `false`, modo scriptable).
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router or switch name (e.g. 'R1', 'Switch_A'). |
+| `command` | string | Yes | Cisco IOS CLI command to execute (e.g. 'show ip interface brief', 'show ip route'). |
+| `timeout_ms` | integer | No | Command execution timeout in milliseconds. |
 
-**Notas:** Destructivo. Devuelve la lista de dispositivos que existían antes del wipe y verifica el resultado tras la operación.
+### `pt_run_cli_bulk`
 
-## .pkt persistence
+Push a multi-line Cisco IOS configuration block (such as interfaces, routing, VLANs, or ACLs) to a router or switch. Automatically prepares the CLI, strips unsupported trunk encapsulation commands on 2960/3650 switches, and returns the command count and console output. Supports dry_run / Teach Mode to preview commands without applying them.
 
-### `pt_save_pkt`
-
-> Save the active PT canvas to a .pkt file at an absolute path via AppWindow.fileSaveAsNoPrompt.
-
-**Parámetros:**
-- `path` (string, requerido) — ruta absoluta donde escribir el `.pkt`. Crea el padre si falta.
-- `overwrite` (boolean, opcional) — si `false` y el fichero existe, falla antes de llamar a PT (por defecto `true`).
-
-**Notas:** El formato `.pkz` no se soporta (PT 9 falla en silencio al escribirlo). Espera a que el tamaño se estabilice antes de devolver, calcula SHA-1 vía PT y comprueba si el filesystem del servidor también ve el fichero.
-
-### `pt_open_pkt`
-
-> Open a .pkt file into the active PT workspace via AppWindow.fileOpen.
-
-**Parámetros:**
-- `path` (string, requerido) — ruta absoluta legible por el proceso PT.
-- `replace` (boolean, opcional) — si `true` (por defecto), limpia el canvas con `fileNew(false)` antes; si `false`, hace MERGE (comportamiento nativo de `fileOpen`).
-
-**Notas:** PT 9 cifra `.pkt` con derivación de clave por fichero, así que no hay magic bytes que validar; la validez la decide PT con `FileOpenReturnValue=0`. Reporta deviceCount antes/después.
-
-### `pt_save_pkt_to_bytes`
-
-> Save the active PT canvas and return the .pkt as base64 bytes (no permanent file).
-
-**Parámetros:**
-- `max_bytes` (int, opcional) — tope de tamaño aceptado (por defecto 5 MB).
-
-**Notas:** PT escribe a un temp dentro de su user folder, el servidor lo lee por chunks vía `SystemFileManager.getFileBinaryContents` y luego PT borra el temp. Útil cuando servidor y PT no comparten filesystem. Cross-checkea SHA-1 entre PT y el buffer reensamblado.
-
-### `pt_open_pkt_from_bytes`
-
-> Open a .pkt provided as base64 bytes (no permanent file required on disk).
-
-**Parámetros:**
-- `bytes_base64` (string, requerido) — contenido del `.pkt` en base64.
-- `replace` (boolean, opcional) — si `true` (por defecto), wipea el canvas antes; si `false`, MERGE.
-- `max_bytes` (int, opcional) — tope decodificado (por defecto 2 MB).
-
-**Notas:** El servidor manda los bytes a un temp PT-side vía `writeBinaryToFile`, dispara `fileOpen` y limpia el temp. Sin magic bytes que validar; la validez se decide por `FileOpenReturnValue=0`.
-
-## Escape hatch
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router or switch name (e.g. 'R1', 'SW1'). |
+| `commands` | string[] \| string | Yes | CLI commands to send in sequence, as an array of lines (preferred) or a newline-separated string. |
+| `tail_chars` | integer | No | Maximum trailing console output characters to return. (default: `2000`) |
+| `dry_run` | boolean | No | Teach mode: if true (or STU_PT_TEACH_MODE=1), return the exact IOS commands instead of applying them to Packet Tracer. |
 
 ### `pt_send_raw`
 
-> Escape hatch: ship arbitrary JS to PT's Script Engine. Useful when no specialised tool covers what you need yet.
+Escape hatch: ship arbitrary JS to PT's Script Engine. Useful when no specialised tool covers what you need yet — call e.g. 'return ipc.network().getDeviceCount();'. Prefer the typed tools when they exist.
 
-**Parámetros:**
-- `code` (string, requerido) — expresión JS a evaluar dentro del Script Engine de PT (envuelta implícitamente, así que se puede usar `return ...`).
-- `wait` (boolean, opcional) — si `true` (por defecto), espera el resultado; si `false`, fire-and-forget.
-- `timeout_ms` (int, opcional) — timeout en ms (máx. 60000).
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `code` | string | Yes | JS expression evaluated inside PT's Script Engine. Implicitly wrapped, so you can use 'return ...'. |
+| `wait` | boolean | No | If true (default) wait for the return value; if false, fire-and-forget. |
+| `timeout_ms` | integer | No |  |
 
-**Notas:** Cuando exista una tool tipada que cubra el caso, preferirla a `pt_send_raw`. Etiqueta cada llamada con un fragmento del código para facilitar el debug en logs.
+### `pt_show_running`
+
+Capture `show running-config` (optionally filtered by `| section`) on one or more routers or switches. Automatically handles privileged mode entry and `--More--` pagination so complete configurations are returned. Use this to verify lab configs or compare changes.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `devices` | string[] | Yes | Routers or switches to inspect. Each device is queried separately. |
+| `section` | string | No | Optional `\| section <pattern>` filter — e.g. 'interface GigabitEthernet0/0', 'router ospf', 'ipv6'. |
+| `tail_chars` | integer | No | Per-device maximum output length in characters. (default: `20000`) |
+
+## Simulation & Testing
+
+### `pt_ping`
+
+Send ICMP echo requests from a PC, switch, or router to a target IP and return parsed metrics. Output includes sent, received, lost, and success rate percentages alongside the raw transcript. Note: the first ping in a lab often drops 1-2 packets while ARP table entries resolve.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Device originating the ping (PC, router, or switch name). |
+| `target` | string | Yes | Destination IPv4 or IPv6 address (e.g. '192.168.1.1', '2001:DB8:1::1'). |
+| `timeout_ms` | integer | No | Timeout in milliseconds to wait for ping completion. (default: `25000`) |
+
+### `pt_send_pdu`
+
+Originate a Simple PDU (ICMP echo) from one device to another via UserCreatedPDU.addSimplePdu. Returns the scenario index assigned to the PDU. Verified on PT 9 real (probe-fase8b 2026-04-29).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `source` | string | Yes | Source device name (must be on the canvas). |
+| `dest` | string | Yes | Destination device NAME — IPs are not accepted by UserCreatedPDU.addSimplePdu. |
+| `fire` | boolean | No | If true, fire the PDU immediately after creating it (then delete it from the scenario list to leave no trace). If false, just queue it and leave it in the PDU list. (default: `true`) |
+| `switch_to_simulation` | boolean | No | If true, switch PT to Simulation Mode before firing — required for the PDU to actually move. Set to false if the caller handles the mode toggle. (default: `true`) |
+
+### `pt_simulation_mode`
+
+Toggle PT between Realtime and Simulation modes via the RSSwitch widget. After switching to simulation, use pt_send_pdu to originate traffic and pt_simulation_play to advance.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `mode` | `"simulation"` \| `"realtime"` | Yes | 'simulation' switches PT to Simulation Mode (event-by-event). 'realtime' switches back to Realtime. |
+
+### `pt_simulation_play`
+
+Trigger one of the SimulationPanel buttons (play/back/forward/reset). Caller must put PT in Simulation mode first via pt_simulation_mode — calling 'play' from Realtime is a no-op.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `action` | `"play"` \| `"back"` \| `"forward"` \| `"reset"` | Yes | Simulation panel action: 'play' = auto-capture, 'forward' = single step forward, 'back' = step back, 'reset' = wipe captured events. |
+
+### `pt_traceroute`
+
+Trace the network path and intermediate hops from a device to a destination address. Dispatches appropriate command variants automatically for both PCs (tracert) and IOS routers (traceroute). Returns a structured list of hops with round-trip indicators and completion status.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Device originating the trace (PC or router). |
+| `target` | string | Yes | Destination IPv4 or IPv6 address (e.g. '10.0.0.1'). |
+| `timeout_ms` | integer | No | Timeout in milliseconds to wait for traceroute to complete. (default: `60000`) |
+
+## Topology & Canvas
+
+### `pt_add_canvas_annotation`
+
+Decorate the canvas with a note, line, or circle (LogicalWorkspace.addNote/drawLine/drawCircle). Returns the new annotation's UUID.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `kind` | `"note"` \| `"line"` \| `"circle"` | Yes | Annotation primitive to draw. |
+| `x` | number | Yes | note/circle: x; line: x1. |
+| `y` | number | Yes | note/circle: y; line: y1. |
+| `x2` | number | No | line: x2. |
+| `y2` | number | No | line: y2. |
+| `radius` | number | No | circle: radius (px). |
+| `text` | string | No | note: text content. |
+| `font_size` | integer | No | note: font size. (default: `12`) |
+| `thickness` | integer | No | line/circle: stroke thickness. (default: `2`) |
+| `r` | integer | No | RGB red. (default: `0`) |
+| `g` | integer | No | RGB green. (default: `0`) |
+| `b` | integer | No | RGB blue. (default: `0`) |
+| `alpha` | integer | No | Alpha. (default: `255`) |
+
+### `pt_add_device`
+
+Place a single device in the active Logical workspace and rename it to the requested name. Coordinates are in PT's logical canvas units. Auto-placement policy when x/y are omitted: routers at y=100, accesspoints at y=175, switches at y=250, endpoints at y=400, servers at y=480, clouds at y=20; X advances 250 units per slot in the same row. The server reads the live canvas to pick the next free column for the device's category. To get a clean topology pass x/y for nothing — let the grid do the work, then call pt_auto_layout at the end if you want to re-align everything.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Final name to assign to the device, e.g. 'R1'. |
+| `model` | string | Yes | PT model (e.g. '2911', 'PC-PT') or one of the aliases from pt_list_devices. |
+| `x` | number | No | Logical-view X coordinate. Optional — when omitted, the server places the device on a clean grid based on its category (router=top row, switch=mid, endpoints=bottom). Recommended: leave x/y blank unless you have a specific reason to override placement; manual coordinates often produce ugly canvases. |
+| `y` | number | No | Logical-view Y coordinate. Optional — see `x` for the auto-placement policy. |
+
+### `pt_add_module`
+
+Install a hardware module (NIM-2T, HWIC-2T, NIM-ES2-4, ...) into a router slot. Idempotent: if the slot already holds the requested module, returns success without touching the chassis.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router name to install the module into. |
+| `slot` | string | Yes | Slot path 'chassis/bay', e.g. '0/1'. |
+| `module` | string | Yes | Module model, e.g. 'NIM-2T', 'HWIC-2T', 'NIM-ES2-4'. |
+
+### `pt_auto_layout`
+
+Re-grid the entire live canvas into a clean topology-aware layout. Reads every device, classifies it (router / switch / AP / endpoint / server / cloud), and assigns coordinates by category row plus column alignment with the parent device (switches column-aligned with their router, endpoints with their switch). Use this after the AI has built a topology with manual coordinates to make it look like a recipe-built lab. Idempotent: running it twice on the same canvas is a no-op.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `dryRun` | boolean | No | When true, return the planned moves without applying them. Useful for previewing the new layout before committing. |
+
+### `pt_clear_canvas`
+
+Wipe the entire PT canvas (File > New) via AppWindow.fileNew. DESTRUCTIVE: removes every device, link, note and PDU in the active workspace. Requires confirm=true. Returns the list of device names that existed before the wipe.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `confirm` | boolean | Yes | Must be literally true. Forces the caller to acknowledge that this wipes the canvas. |
+| `prompt_user` | boolean | No | If true, PT shows the 'save before new?' modal interactively. Default false skips the modal entirely (correct for scripted use). (default: `false`) |
+
+### `pt_create_link`
+
+Cable two existing devices together. Cable defaults to copper straight-through; use 'cross' for switch trunks, 'serial' for WAN P2P (requires HWIC-2T module on ISR routers — add it first with pt_add_module), 'fiber', 'console' or 'coaxial' as needed. Convention: 'straight' for LAN segments (router↔switch, switch↔PC); 'serial' for WAN exterior P2P between routers crossing a public/ISP network. SAFETY: refuses straight/cross between two routers without `confirm_internal_lan: true` to prevent the common mistake of cabling WAN exterior links with Ethernet.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device_a` | string | Yes |  |
+| `port_a` | string | Yes | Full port name on device_a, e.g. 'GigabitEthernet0/0'. |
+| `device_b` | string | Yes |  |
+| `port_b` | string | Yes |  |
+| `cable` | `"straight"` \| `"cross"` \| `"fiber"` \| `"console"` \| `"coaxial"` \| `"serial"` | No |  (default: `"straight"`) |
+| `confirm_internal_lan` | boolean | No | Required forcing flag when both endpoints are routers and cable="straight" or "cross". Without it the call is REFUSED — the server assumes you may have intended a WAN serial link (the most common LLM mistake). Pass true only after confirming with the user that this is an internal Ethernet segment between two routers (e.g., a small inter-router LAN within the same office), not a WAN exterior point-to-point link. |
+
+### `pt_delete_device`
+
+Remove a device (and all of its links) from the active workspace. Self-verifies the deletion by re-snapshotting the topology.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Exact device name to remove. |
+
+### `pt_delete_link`
+
+Remove the cable attached to one specific device port. Use this when you need to re-cable without deleting either device.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Either endpoint device of the link. |
+| `port` | string | Yes | Port on `device` whose link should be cut. |
+
+### `pt_manage_clusters`
+
+Inspect and prune logical clusters on the canvas. `list` returns the cluster tree; `remove` deletes a cluster by id; `uncluster` dissolves it while keeping its members. Note: programmatic cluster *creation* is not reachable from PT 9's IPC (requires UI selection).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `action` | `"list"` \| `"remove"` \| `"uncluster"` | Yes | Operation to perform. |
+| `cluster_id` | string | No | Cluster ID for remove/uncluster (from `list`). |
+| `keep_contents` | boolean | No | On `remove`: keep child devices on the canvas (true) or delete them (false). (default: `true`) |
+
+### `pt_move_device`
+
+Reposition a device on the logical canvas via Device.moveToLocation(x, y).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Device to move. |
+| `x` | number | Yes | New X coordinate on the logical canvas. |
+| `y` | number | Yes | New Y coordinate on the logical canvas. |
+
+### `pt_rename_device`
+
+Rename a device. Refuses if the new name is already taken so you don't accidentally collapse two devices into one.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `old_name` | string | Yes | Current device name. |
+| `new_name` | string | Yes | Desired new name. |
+
+### `pt_set_device_power`
+
+Toggle a device's power switch (Device.setPower). Idempotent: returns 'already' when the requested state is already in effect. After power-on the boot dialog is dismissed via skipBoot.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Device name on the live canvas. |
+| `on` | boolean | Yes | Target power state: true=on, false=off. |
+
+### `pt_set_pc`
+
+Configure an endpoint (PC, laptop, server) for static IP or DHCP. In static mode you must pass ip+mask; gateway is optional.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Endpoint name. |
+| `mode` | `"static"` \| `"dhcp"` | Yes | Addressing mode. |
+| `port` | string | No | Port to configure for static mode. (default: `"FastEthernet0"`) |
+| `ip` | string | No | IPv4 address; required when mode='static'. |
+| `mask` | string | No | Subnet mask; required when mode='static'. |
+| `gateway` | string | No | Default gateway; optional, static mode only. |
+
+## Inspection & Analysis
+
+### `pt_explain_canvas`
+
+Render a human-readable narration of the live workspace: inventory counts, per-router subnets, dangling addresses. Read-only.
+
+_No parameters._
+
+### `pt_forecast`
+
+Dry-run estimator. Build the blueprint for a recipe and report what it would allocate, without touching the live canvas.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `recipe` | string | Yes | Recipe key, e.g. 'chain', 'star', 'branch_office'. |
+| `params` | object | No | Recipe-specific parameters; see pt_list_recipes for shape. (default: `{}`) |
+
+### `pt_generate_configs`
+
+Offline generator. Builds a recipe blueprint and synthesises the IOS CLI each device would receive — without touching PT or the bridge. Useful for documentation, classroom material, or replicating the lab on real hardware. Endpoints (PCs, APs, phones) get human-readable notes instead of CLI.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `recipe` | string | Yes | Recipe key (see pt_list_recipes). |
+| `params` | object | No | Recipe-specific parameters. (default: `{}`) |
+| `format` | `"summary"` \| `"json"` \| `"concat"` | No | summary: human report. json: structured devices array. concat: every device's IOS config back-to-back, banner-separated. (default: `"summary"`) |
+
+### `pt_get_device_details`
+
+Inspect a single device: model, type, power state, and live port-by-port snapshot (IP, mask, connection state).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Device name to inspect. |
+
+### `pt_inspect_canvas`
+
+Snapshot the live workspace and report duplicate IPs, unaddressed router uplinks, mismatched router-peer subnets, and similar findings. Read-only.
+
+_No parameters._
+
+### `pt_inspect_ports`
+
+Live per-port status: link presence, isPortUp, isProtocolUp, MAC, IP/mask, wireless flag — read directly from the Port objects.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Device name on the live canvas. |
+| `onlyLinked` | boolean | No | Filter to ports that have a link attached. (default: `false`) |
+
+### `pt_query_topology`
+
+Snapshot the live topology in Packet Tracer: returns name, model, classname and coordinates for every user-placed device.
+
+_No parameters._
+
+### `pt_read_acl`
+
+Read the live ACLs of a router via AclProcess: per-ACL canonical commands as PT would render them in 'show running-config | section access-list'.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router (or any device exposing AclProcess). |
+
+### `pt_read_project_metadata`
+
+Read NetworkFile metadata of the .pkt currently open in PT: description, file version, and the on-disk filename if it has been saved.
+
+_No parameters._
+
+### `pt_read_vlans`
+
+Read the live VLAN database of a switch via VlanManager (id, name, default flag, MAC table size).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Switch name (or any device exposing a VlanManager process). |
+
+### `pt_show_bgp_routes`
+
+Run `show ip bgp` on a router and parse the BGP table into rows (status, network, next-hop, metric, localpref, weight, path). PT 9 has no BgpProcess JS API, so this is the only way to inspect live BGP state.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router running BGP. |
+| `vrf` | string | No | Optional VRF name. If unset, uses the global table. |
+
+## Configuration & Recipes
+
+### `pt_apply_advanced_routing`
+
+Apply advanced routing intents (BGP, HSRP, IGP extras like passive-interface and default-information originate) to routers on the live canvas. Each block writes running→startup per device.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bgp` | object[] | No | BGP intents per router (router bgp <asn> with neighbors/networks/redistribute). |
+| `hsrp` | object[] | No | HSRP per-interface intents (standby <group> ip <vip> with priority/preempt). |
+| `igpExtras` | object[] | No | Extra directives for existing OSPF/EIGRP/RIP processes (passive-interface, default-information originate). |
+
+### `pt_apply_ipv6`
+
+Configure dual-stack IPv6 on routers (unicast-routing, interface addresses, OSPFv3, static routes) and IPv6 hosts on PCs/laptops/servers.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `unicastRouting` | boolean | No | Emit `ipv6 unicast-routing` (default true) on every router with IPv6 intents. |
+| `interfaces` | object[] | No |  |
+| `ospf` | object[] | No |  |
+| `staticRoutes` | object[] | No |  |
+| `endpoints` | object[] | No | PC/Laptop/Server IPv6 host configuration via `ipv6config`. |
+
+### `pt_apply_services`
+
+Apply L3 services (ACLs, NAT, DHCP server/relay, NTP, Syslog) to the live canvas. Each block is grouped per device and pushed as one bulk per service.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `acls` | object[] | No | Standard / extended ACLs (optionally bound to interfaces). |
+| `nat` | object[] | No | NAT roles, statics, pools and overload directives per device. |
+| `dhcpPools` | object[] | No | DHCP server pools. |
+| `dhcpRelays` | object[] | No | DHCP relay (helper-address) per interface. |
+| `ntp` | object[] | No | NTP servers per device. |
+| `syslog` | object[] | No | Syslog hosts and trap level per device. |
+
+### `pt_apply_switching`
+
+Apply L2 switching intents (VLANs, trunks, port-security, EtherChannel) to switches on the live canvas. Each helper groups CLI per device and pushes one bulk per switch.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `vlans` | object[] | No | VLAN definitions and access ports per switch. |
+| `trunks` | object[] | No | Trunk port configuration per switch. |
+| `portSecurity` | object[] | No | Port-security rules per switch. |
+| `etherChannels` | object[] | No | EtherChannel groups per switch (>=2 ports each). |
+
+### `pt_apply_voip`
+
+Configure CME (telephony-service / ephone-dn / ephone) on a router and voice VLANs on an access switch through IOS CLI.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cme` | object[] | No | CME (telephony-service) blocks per router. |
+| `ephoneDns` | object[] | No | ephone-dn extensions to provision on a CME router. |
+| `ephones` | object[] | No | ephone (phone) registrations referencing ephone-dn tags. |
+| `voiceVlans` | object[] | No | Switchport voice/data VLAN configuration for IP Phone access ports. |
+
+### `pt_apply_wireless`
+
+Apply wireless SSID/security on APs and associate wireless clients through Packet Tracer's native WirelessServer/WirelessClient IPC processes.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `aps` | object[] | No | AP SSIDs/security to configure through PT native WirelessServer API. |
+| `clients` | object[] | No | Wireless client associations to configure through PT native WirelessClient API. |
+
+### `pt_configure_server_dhcp`
+
+Configure DHCP service on a Server-PT device using the native IPC API (addPool + setNetworkMask/setDefaultRouter/setStartIp/setEndIp/setDnsServerIp/setMaxUsers + addExcludedAddress). LIMITS — confirmed dead-ends in PT 9.0 via prototype reflection: (a) TFTP server / DHCP option-150 has NO setter on Server-PT — pool exposes getTftpAddress but no setTftpAddress, no setOption*, no setBootFile, no setSiaddr; addNewPool's documented 8-arg signature returns Invalid arguments for arities 1..12. (b) Domain name has no setter (only getDomainName). (c) maxUsers and endIp are coupled: PT recalculates one when you set the other. If you pass both, ensure they're consistent (endIp - startIp + 1 == maxUsers); the tool applies maxUsers first then endIp, so endIp wins. If you need option-150 (typical for VoIP IP phones), DO NOT use this tool — tell the user to make the router the DHCP server instead, and call pt_apply_services with dhcpPools[].tftpServer set: that emits CLI `option 150 ip <ip>` inside the pool.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Server-PT device name (must already exist on canvas). |
+| `port` | string | No | Port name where the DHCP service runs. Default: FastEthernet0. |
+| `enable` | boolean | No | Toggle the DHCP service on/off. |
+| `pools` | object[] | No | DHCP pools to create or update. Idempotent: if a pool with the same name exists, only its setters are reapplied. Network address is inferred by PT from startIp + subnetMask (no setter exposed). |
+| `removePools` | string[] | No | Pool names to delete first. |
+| `exclusions` | object[] | No | Excluded address ranges (port-wide, not per pool). |
+
+### `pt_configure_subinterface`
+
+Build router-on-a-stick: configure 802.1Q subinterfaces on a router's parent interface (one block per VLAN). Brings the parent up first, then emits 'encapsulation dot1Q <vlan> + ip address' per VLAN. Pair with a switch trunk (pt_apply_switching trunk) to complete the inter-VLAN routing setup.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router name on the live canvas. |
+| `parent` | string | Yes | Full parent interface name (e.g. 'GigabitEthernet0/0'). Brought up with 'no shutdown' before subinterfaces are configured. |
+| `subinterfaces` | object[] | Yes | One block per VLAN. Each generates 'interface <parent>.<vlan>' + 'encapsulation dot1Q <vlan>' + 'ip address ...'. |
+
+### `pt_cook_topology`
+
+Build a recipe's blueprint and apply it to the live workspace: places devices, wires links, addresses ports, configures routing. Idempotent against partial state.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `recipe` | string | Yes | Recipe key (chain, star, branch_office). See pt_list_recipes. |
+| `params` | object | No | Recipe-specific parameters. (default: `{}`) |
+
+### `pt_mend_canvas`
+
+Inspect the live workspace and apply safe, conservative repairs (e.g. powering on devices that have active links). Reports remaining issues that need a human decision.
+
+_No parameters._
+
+## Files & Snapshots
+
+### `pt_diff_snapshots`
+
+Compare two snapshots (or one snapshot vs the live canvas) and describe what changed: added/removed devices and links, changed IPs, masks, link state and power state.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `before` | string | Yes | Saved snapshot name, or 'live' to capture the canvas now. |
+| `after` | string | No | Saved snapshot name, or 'live' (default) for the live canvas. (default: `"live"`) |
+
+### `pt_list_snapshots`
+
+List every persisted canvas snapshot, sorted from newest to oldest.
+
+_No parameters._
+
+### `pt_load_snapshot`
+
+Load a saved snapshot and diff it against the live workspace. Reports added/removed/changed devices, ports, and links since the snapshot was taken.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Snapshot identifier to load and diff against the live canvas. |
+
+### `pt_open_pkt`
+
+Open a .pkt file into the active PT workspace via AppWindow.fileOpen. PT's native fileOpen MERGES the file with the existing canvas; pass replace=true (default) to wipe the canvas first via fileNew(false). PT 9 encrypts .pkt with per-file key derivation so the leading bytes are not a stable magic; validity is decided by FileOpenReturnValue=0 from PT. Returns deviceCount before/after.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `path` | string | Yes | Absolute path to a .pkt file readable by the Packet Tracer process. Pkz files are NOT supported. |
+| `replace` | boolean | No | If true (default), the canvas is wiped via fileNew(false) before opening so the loaded file's devices fully replace the current canvas. If false, fileOpen MERGES the file into the live canvas (PT 9's native behavior). (default: `true`) |
+
+### `pt_open_pkt_from_bytes`
+
+Open a .pkt provided as base64 bytes (no permanent file required on disk). The server asks PT to write the bytes to a temp path inside its user folder via SystemFileManager.writeBinaryToFile, then triggers fileNew(false)+fileOpen and removes the temp. PT 9 encrypts .pkt with per-file key derivation so there is no stable magic to validate server-side; validity is decided by FileOpenReturnValue=0 from PT. Useful when bytes come from a remote source (DB, MCP client) and the server filesystem is not visible to PT.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `bytes_base64` | string | Yes | Base64-encoded contents of a .pkt file. PT 9 encrypts .pkt with a per-file key derivation, so there is no stable magic to validate server-side; the authoritative validity check is FileOpenReturnValue=0 after PT loads the blob. |
+| `replace` | boolean | No | If true (default), the canvas is wiped via fileNew(false) before opening so the loaded file's devices fully replace the current canvas. If false, fileOpen MERGES into the live canvas (PT 9 native behavior). (default: `true`) |
+| `max_bytes` | integer | No | Maximum decoded blob size to accept (bytes). Default 2 MB. The bridge transports the full base64 inline, so very large blobs strain the request payload; use pt_open_pkt(path) for large files instead. (default: `2000000`) |
+
+### `pt_save_pkt`
+
+Save the active PT canvas to a .pkt file at an absolute path via AppWindow.fileSaveAsNoPrompt. Returns the final size in bytes and a SHA-1 checksum for verification. Pkz format is intentionally not supported (PT 9 silently fails to write it).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `path` | string | Yes | Absolute filesystem path where the .pkt should be written. Parent directory is created if missing. Existing files are overwritten without confirmation. |
+| `overwrite` | boolean | No | If false and the target file already exists, the tool fails before calling PT. Default true (matches fileSaveAsNoPrompt semantics). (default: `true`) |
+
+### `pt_save_pkt_to_bytes`
+
+Save the active PT canvas and return the .pkt as base64 bytes (no permanent file). PT writes to a temp path inside its own user folder via fileSaveAsNoPrompt, the server reads the bytes back chunked through SystemFileManager.getFileBinaryContents, then PT removes the temp. Useful when the server and PT do not share a filesystem (remote PT) or the caller wants the bytes in-memory.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `max_bytes` | integer | No | Maximum decoded file size to accept (bytes). Default 5 MB; raise for unusually large canvases. (default: `5000000`) |
+
+### `pt_save_snapshot`
+
+Capture the current live workspace and persist it to disk under the given name. Useful for diff/audit later.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `name` | string | Yes | Snapshot identifier; only letters, digits, dot, dash, underscore. |

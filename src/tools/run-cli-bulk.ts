@@ -2,88 +2,113 @@ import { z } from "zod";
 import { prepareDevice } from "../cli/engine.js";
 import { fetchDeviceModel } from "../ipc/device-model.js";
 import { bulkCliJs } from "../ipc/generator.js";
-import { errorResult, requireConnectedBridge, textResult } from "./helpers.js";
+import { resolveCanvasDevice } from "../util/devices.js";
+import { ptError } from "../util/errors.js";
+import { defineTool } from "./define.js";
 import { checkPtReply } from "./pt-errors.js";
-import type { ToolModule } from "./types.js";
 
 /**
  * The Script Engine accepts only single-line `enterCommand` payloads. To run
  * a configuration block (an OSPF stanza, a NAT pool, ACL list, ...) the
- * caller passes the whole block as one string and we split it client-side
- * before sending. The reply uses the structured BULK protocol from
- * `bulkCliJs`: the first line carries the number of commands run and a
- * truncation flag so the caller knows whether the slice is the full
- * transcript or just the tail.
+ * caller passes either an array of commands or a newline-delimited string.
  */
-const InputSchema = {
-  device: z.string().min(1).describe("Router or switch name."),
-  commands: z.string().min(1).describe(
-    "Multi-line CLI block. Lines are split, trimmed and sent one-by-one. Empty lines are ignored.",
+const InputSchema = z.object({
+  device: z.string().min(1).describe("Router or switch name (e.g. 'R1', 'SW1')."),
+  commands: z.union([
+    z.array(z.string().min(1)).min(1),
+    z.string().min(1),
+  ]).describe(
+    "CLI commands to send in sequence, as an array of lines (preferred) or a newline-separated string.",
   ),
   tail_chars: z.number().int().min(100).max(20_000).default(2_000)
-    .describe("How many characters of trailing console output to return at most."),
-};
+    .describe("Maximum trailing console output characters to return."),
+  dry_run: z.boolean().optional()
+    .describe("Teach mode: if true (or STU_PT_TEACH_MODE=1), return the exact IOS commands instead of applying them to Packet Tracer."),
+});
 
-export const registerRunCliBulkTool: ToolModule = ({ bridge, server }) => {
-  server.tool(
-    "pt_run_cli_bulk",
-    "Push a multi-line CLI block (e.g. an OSPF/EIGRP stanza or a sequence of `ip nat` rules) to a device. Returns a structured payload with the count of commands sent, a truncation flag, and the captured output.",
-    InputSchema,
-    async ({ device, commands, tail_chars }) => {
-      const blocked = requireConnectedBridge(bridge);
-      if (blocked) return blocked;
+export const registerRunCliBulkTool = defineTool({
+  name: "pt_run_cli_bulk",
+  description: "Push a multi-line Cisco IOS configuration block (such as interfaces, routing, VLANs, or ACLs) to a router or switch. Automatically prepares the CLI, strips unsupported trunk encapsulation commands on 2960/3650 switches, and returns the command count and console output. Supports dry_run / Teach Mode to preview commands without applying them.",
+  category: "CLI & Diagnostics",
+  input: InputSchema,
+  handler: async ({ device, commands, tail_chars, dry_run }, { bridge }) => {
+    const commandBlock = Array.isArray(commands) ? commands.join("\n") : commands;
+    const isTeachMode = dry_run === true || process.env.STU_PT_TEACH_MODE === "1";
 
-      // Ensure the device is ready (dismiss lingering initial dialog / More pager)
-      await prepareDevice(bridge, device);
+    if (isTeachMode) {
+      const lines = commandBlock.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const text = [
+        `[Teach Mode — Dry Run] Commands NOT applied to ${device}.`,
+        `Type these commands in ${device}'s CLI tab:`,
+        "",
+        ...lines.map(l => `  ${l}`),
+      ].join("\n");
+      return {
+        text,
+        structured: {
+          device,
+          dry_run: true,
+          commandCount: lines.length,
+          commands: lines,
+        },
+      };
+    }
 
-      // Pre-process: model-aware encapsulation filter. Two families reject
-      // the `switchport trunk encapsulation` subcommand:
-      //   - 2950/2960 (legacy IOS): only support 802.1Q implicitly, parser
-      //     never exposed the verb.
-      //   - 3650/IE-3400/IE-9320 (IOS XE 16.x/17.x): real Cisco kept the
-      //     verb but PT 9 only ships dot1q — its IOS XE parser drops the
-      //     `encapsulation` keyword and replies "% Invalid input".
-      // Only 3560 (IOS 12.x multilayer) accepts AND requires the command
-      // — and demands it BEFORE `mode trunk`. Verified empirically with
-      // scripts/probe-encapsulation-parser.ts on 2026-05-01.
-      const className = await fetchDeviceModel(bridge, device);
-      const shouldFilter = classRejectsEncapsulation(className);
-      const { filtered, droppedCount, droppedSamples } = shouldFilter
-        ? stripEncapsulationLines(commands)
-        : { filtered: commands, droppedCount: 0, droppedSamples: [] as string[] };
+    const resolvedDevice = await resolveCanvasDevice(bridge, device);
+    await prepareDevice(bridge, resolvedDevice);
 
-      const js = bulkCliJs(device, filtered, tail_chars);
-      const result = await bridge.sendAndWait(js, { timeoutMs: 60_000 });
-      const err = checkPtReply(result, { device });
-      if (err) return err;
-      if (!result) return textResult("(empty output)");
+    const className = await fetchDeviceModel(bridge, resolvedDevice);
+    const shouldFilter = classRejectsEncapsulation(className);
+    const { filtered, droppedCount, droppedSamples } = shouldFilter
+      ? stripEncapsulationLines(commandBlock)
+      : { filtered: commandBlock, droppedCount: 0, droppedSamples: [] as string[] };
 
-      // Expected: `BULK|<count>|<truncated>\n<rest>`
-      const newlineIdx = result.indexOf("\n");
-      if (!result.startsWith("BULK|") || newlineIdx === -1) {
-        return errorResult(`Unexpected reply shape from PT bulk CLI: ${result.slice(0, 80)}`);
-      }
-      const header = result.slice(0, newlineIdx);
-      const output = result.slice(newlineIdx + 1);
-      const parts = header.split("|");
-      const count = Number(parts[1] ?? "0");
-      const truncated = parts[2] === "1";
+    const js = bulkCliJs(resolvedDevice, filtered, tail_chars);
+    const result = await bridge.sendAndWait(js, { timeoutMs: 60_000 });
+    const err = checkPtReply(result, { device: resolvedDevice });
+    if (err) return err;
+    if (!result) {
+      return {
+        text: "(empty output)",
+        structured: { device: resolvedDevice, count: 0, truncated: false, output: "" },
+      };
+    }
 
-      const filterNote =
-        droppedCount > 0
-          ? `Note: stripped ${droppedCount} 'switchport trunk encapsulation' line(s) — ` +
-            `${className ?? "this switch"} only supports 802.1Q and rejects the command. ` +
-            `Filtered: ${droppedSamples.join(" | ")}\n`
-          : "";
+    const newlineIdx = result.indexOf("\n");
+    if (!result.startsWith("BULK|") || newlineIdx === -1) {
+      throw ptError("UNEXPECTED_REPLY", `Unexpected reply shape from PT bulk CLI: ${result.slice(0, 80)}`);
+    }
+    const header = result.slice(0, newlineIdx);
+    const output = result.slice(newlineIdx + 1);
+    const parts = header.split("|");
+    const count = Number(parts[1] ?? "0");
+    const truncated = parts[2] === "1";
 
-      const banner =
-        `Sent ${count} command(s)${truncated ? " (output truncated to tail)" : ""}.\n` +
-        filterNote +
-        `--- output ---\n`;
-      return textResult(banner + (output.length > 0 ? output : "(empty output)"));
-    },
-  );
-};
+    const filterNote =
+      droppedCount > 0
+        ? `Note: stripped ${droppedCount} 'switchport trunk encapsulation' line(s) — ` +
+          `${className ?? "this switch"} only supports 802.1Q and rejects the command. ` +
+          `Filtered: ${droppedSamples.join(" | ")}\n`
+        : "";
+
+    const banner =
+      `Sent ${count} command(s) to ${resolvedDevice}${truncated ? " (output truncated to tail)" : ""}.\n` +
+      filterNote +
+      `--- output ---\n`;
+
+    return {
+      text: banner + (output.length > 0 ? output : "(empty output)"),
+      structured: {
+        device: resolvedDevice,
+        count,
+        truncated,
+        droppedCount,
+        droppedSamples,
+        output,
+      },
+    };
+  },
+});
 
 /**
  * Catalyst chassis whose PT 9 parser rejects
@@ -94,25 +119,16 @@ export const registerRunCliBulkTool: ToolModule = ({ bridge, server }) => {
  *     verb but PT's IOS XE parser drops it.
  *
  * 3560 (IOS 12.x multilayer) IS the only switch that accepts the command,
- * so we explicitly do NOT match it here. Anything else (including unknown
- * models) gets the benefit of the doubt — we do NOT filter.
- *
- * Verified 2026-05-01 with scripts/probe-encapsulation-parser.ts. Update
- * via probe rerun if Cisco ships a new parser revision.
+ * so we explicitly do NOT match it here.
  */
 export function classRejectsEncapsulation(className: string | null): boolean {
   if (!className) return false;
-  // Order matters: match "3560" first to short-circuit (it's the only
-  // accepting model). Without this, "3560-24PS" could end up in the
-  // 3650/IE families if we got the regex wrong.
   if (/3560/i.test(className)) return false;
   return /(2950|2960|3650|IE-3400|IE-9320)/i.test(className);
 }
 
 /**
- * Strip `switchport trunk encapsulation ...` lines from a CLI block. Used
- * only when the target switch is known to reject the command (see
- * `classRejectsEncapsulation`). Pure function — exported for unit tests.
+ * Strip `switchport trunk encapsulation ...` lines from a CLI block.
  */
 export function stripEncapsulationLines(block: string): {
   filtered: string;
@@ -135,4 +151,3 @@ export function stripEncapsulationLines(block: string): {
     droppedSamples: dropped.slice(0, 3),
   };
 }
-

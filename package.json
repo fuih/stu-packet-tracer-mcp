@@ -71,9 +71,11 @@
     "build": "bun build src/index.ts --compile --outfile dist/stu-packet-tracer-mcp",
     "typecheck": "tsc --noEmit",
     "check:english": "bun run scripts/check-english.ts",
+    "docs:tools": "bun run scripts/gen-tools-doc.ts",
+    "check:tools": "bun run scripts/gen-tools-doc.ts --check",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "ci": "bun run typecheck && bun run check:english && bun test"
+    "ci": "bun run typecheck && bun run check:english && bun run check:tools && bun test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

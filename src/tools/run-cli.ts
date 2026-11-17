@@ -1,33 +1,38 @@
 import { z } from "zod";
 import { runCli } from "../cli/engine.js";
-import { requireConnectedBridge, textResult, errorResult } from "./helpers.js";
-import type { ToolModule } from "./types.js";
+import { resolveCanvasDevice } from "../util/devices.js";
+import { defineTool } from "./define.js";
 
-const InputSchema = {
-  device: z.string().min(1).describe("Router or switch name."),
-  command: z.string().min(1).describe("CLI command, e.g. 'show ip interface brief'."),
-  timeout_ms: z.number().int().min(500).max(60_000).optional().describe("Timeout in milliseconds."),
-};
+const InputSchema = z.object({
+  device: z.string().min(1).describe("Router or switch name (e.g. 'R1', 'Switch_A')."),
+  command: z.string().min(1).describe("Cisco IOS CLI command to execute (e.g. 'show ip interface brief', 'show ip route')."),
+  timeout_ms: z.number().int().min(500).max(60_000).optional().describe("Command execution timeout in milliseconds."),
+});
 
-export const registerRunCliTool: ToolModule = ({ bridge, server }) => {
-  server.tool(
-    "pt_run_cli",
-    "Send a CLI command to a router or switch and return the slice of console output produced by it. Automatically handles boot dialogs, privilege elevation, and pagination.",
-    InputSchema,
-    async ({ device, command, timeout_ms }) => {
-      const blocked = requireConnectedBridge(bridge);
-      if (blocked) return blocked;
-
-      try {
-        const res = await runCli(bridge, device, command, { timeoutMs: timeout_ms });
-        let out = res.output;
-        if (res.logs.length > 0) {
-          out += `\n\n[Syslog events during command]\n` + res.logs.join("\n");
-        }
-        return textResult(out.length > 0 ? out : "(empty output)");
-      } catch (e) {
-        return errorResult((e as Error).message);
-      }
-    },
-  );
-};
+export const registerRunCliTool = defineTool({
+  name: "pt_run_cli",
+  description: "Execute a Cisco IOS CLI command on a router or switch and return its console output. Automatically handles initial configuration prompts, privilege elevation, and --More-- pagination without losing output. Syslog events emitted during command execution are separated into structured logs.",
+  category: "CLI & Diagnostics",
+  input: InputSchema,
+  handler: async ({ device, command, timeout_ms }, { bridge }) => {
+    const resolvedDevice = await resolveCanvasDevice(bridge, device);
+    const res = await runCli(bridge, resolvedDevice, command, { timeoutMs: timeout_ms });
+    let out = res.output;
+    if (res.logs.length > 0) {
+      out += `\n\n[Syslog events during command]\n` + res.logs.join("\n");
+    }
+    const text = out.length > 0 ? out : "(empty output)";
+    return {
+      text,
+      structured: {
+        device: res.device,
+        command: res.command,
+        mode_before: res.mode_before,
+        mode_after: res.mode_after,
+        prompt: res.prompt,
+        output: res.output,
+        logs: res.logs,
+      },
+    };
+  },
+});

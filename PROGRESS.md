@@ -1,13 +1,13 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 3 (Completed) -> Phase 4 (Starting)
+## Current phase: 4 (Completed) -> Phase 5 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
 - [x] P1 English + CI (Translation of all Spanish strings, check:english script, GitHub Actions CI)
 - [x] P2 Bridge v1 (Correlation IDs, long-poll /v1/next, origin check, drop late results)
 - [x] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
-- [ ] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
+- [x] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
 - [ ] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md)
 - [ ] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
 - [ ] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
@@ -15,6 +15,15 @@
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 4 Tool Layer Cleanup (Fixes F4 & F10)
+- Created `src/util/errors.ts`: `PtError` class and `ptError(code, message, hint?)` factory for actionable English error reporting.
+- Created `src/util/devices.ts`: Levenshtein distance helper + `resolveDeviceName` (exact -> case-insensitive -> Levenshtein <= 2 "Did you mean...?" suggestion) and `resolveCanvasDevice`.
+- Created `src/util/paths.ts`: `resolveOutputPath` supporting `STU_PT_OUTPUT_DIR` (default `./stu-pt-output/`) returning absolute paths, plus `slugify`.
+- Created `src/tools/define.ts`: `defineTool` wrapper (strict schemas, automatic bridge check unless `offline: true`, `PtError` -> `isError` conversion, `structuredContent`, stderr debug timing) + `installStrictToolWrapper` so all 57 registered tools enforce `.strict()` schemas (`additionalProperties: false`).
+- Ported core tools (`pt_bridge_status`, `pt_list_devices`, `pt_run_cli`, `pt_run_cli_bulk`, `pt_show_running`, `pt_ping`, `pt_traceroute`, `pt_screenshot`) to `defineTool` with `structuredContent`, fuzzy device resolution, and §5.2 conventions (including `commands: string[] | string` and `dry_run` preview on `pt_run_cli_bulk`).
+- Created `scripts/gen-tools-doc.ts` to auto-generate `docs/TOOLS.md` from the live tool registry, added `docs:tools` and `check:tools` scripts to `package.json`, and integrated `check:tools` into `bun run ci`.
+- Added unit tests in `tests/tool-layer.test.ts` verifying strict schema rejection across all 57 tools, fuzzy device resolution, path utilities, and `defineTool`.
+- Verified via `bun run ci`: typecheck clean, English check clean, `docs/TOOLS.md` verified up to date, **376 pass, 0 fail across 32 files**.
 ### 2026-11-17 Phase 3 Resilient CLI Engine (Fixes F3)
 - Implemented `src/cli/prompt.ts`:
   - Cisco IOS prompt regex matching modes: `user` (`R1>`), `privileged` (`R1#`), `config` (`R1(config)#`), `config-if`, `config-subif`, `config-router`, `config-line`, `config-vlan`, `dhcp-config`, `cfg-voice`, `rommon`, and `dialog` (`[yes/no]:`, `[confirm]`).

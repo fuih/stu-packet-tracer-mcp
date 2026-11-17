@@ -6,6 +6,7 @@ import { InMemoryEventStore } from "@modelcontextprotocol/sdk/examples/shared/in
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { Bridge } from "./bridge/http-bridge.js";
 import { registerResources } from "./resources/index.js";
+import { installStrictToolWrapper } from "./tools/define.js";
 import { ALL_TOOLS, type ToolModule } from "./tools/index.js";
 
 export interface ServerOptions {
@@ -107,6 +108,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     }, {
       instructions: SERVER_INSTRUCTIONS,
     });
+    installStrictToolWrapper(mcpServer, bridge);
     for (const register of tools) {
       register({ bridge, server: mcpServer });
     }
@@ -294,6 +296,7 @@ export async function startStdioServer(opts: StdioServerOptions): Promise<Runnin
   }, {
     instructions: SERVER_INSTRUCTIONS,
   });
+  installStrictToolWrapper(mcpServer, bridge);
   for (const register of tools) {
     register({ bridge, server: mcpServer });
   }
