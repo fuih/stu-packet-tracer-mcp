@@ -40,5 +40,8 @@ jobs:
       - name: Check English-only
         run: bun run check:english
 
+      - name: Check tools documentation
+        run: bun run check:tools
+
       - name: Run tests
         run: bun test

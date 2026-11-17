@@ -2,7 +2,15 @@
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOTS_TO_CHECK = ["src", "tests", "extension/src"];
+const ROOTS_TO_CHECK = [
+  "src",
+  "tests",
+  "extension/src",
+  "docs",
+  "README.md",
+  "CHANGELOG.md",
+  "CONTRIBUTING.md",
+];
 const ALLOWLIST_PATH = join(import.meta.dir, "english-allowlist.txt");
 
 const SPANISH_ACCENT_REGEX = /[áéíóúñ¿¡ÁÉÍÓÚÑ]/;
@@ -25,6 +33,10 @@ function shouldSkip(line: string): boolean {
 
 function scanDir(dir: string): string[] {
   const files: string[] = [];
+  const rootStat = statSync(dir);
+  if (!rootStat.isDirectory()) {
+    return [dir];
+  }
   for (const entry of readdirSync(dir)) {
     const fullPath = join(dir, entry);
     const stat = statSync(fullPath);
@@ -35,7 +47,8 @@ function scanDir(dir: string): string[] {
       entry.endsWith(".js") ||
       entry.endsWith(".json") ||
       entry.endsWith(".html") ||
-      entry.endsWith(".css")
+      entry.endsWith(".css") ||
+      entry.endsWith(".md")
     ) {
       files.push(fullPath);
     }

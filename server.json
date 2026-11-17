@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.fuih/stu-packet-tracer-mcp",
-  "description": "Student-focused MCP server for Cisco Packet Tracer 9 — live IOS, topologies, CLI terminals, and lab report generation.",
+  "description": "Student-focused MCP server for Cisco Packet Tracer 9 — live IOS CLI, terminal screenshots (SVG/PNG), student lab checks, and DOCX/HTML/Markdown report export.",
   "version": "0.1.0",
   "websiteUrl": "https://github.com/fuih/stu-packet-tracer-mcp#readme",
   "repository": {
@@ -26,9 +26,25 @@
       "environmentVariables": [
         {
           "name": "BRIDGE_PORT",
-          "description": "Port for the internal HTTP bridge that talks to the Packet Tracer 9 webview (default: 54321)",
+          "description": "Localhost port for the internal HTTP bridge that talks to the Packet Tracer 9 extension (default: 54321)",
           "isRequired": false,
           "default": "54321"
+        },
+        {
+          "name": "STU_PT_OUTPUT_DIR",
+          "description": "Directory where CLI screenshots and exported lab reports are saved (default: ./stu-pt-output)",
+          "isRequired": false,
+          "default": "./stu-pt-output"
+        },
+        {
+          "name": "STU_PT_TEACH_MODE",
+          "description": "Set to 1 to force dry-run/explain-only study mode without modifying Packet Tracer (default: off)",
+          "isRequired": false
+        },
+        {
+          "name": "STU_PT_BRIDGE_TOKEN",
+          "description": "Optional shared secret required in the X-Stu-Token header by the local Packet Tracer bridge",
+          "isRequired": false
         }
       ]
     }

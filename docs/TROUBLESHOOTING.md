@@ -1,229 +1,119 @@
 # Troubleshooting
 
-Lista de síntomas reales que me he encontrado yo o usuarios early. Cada
-entrada va con causa probable y un fix concreto. Si te pasa algo que no
-está aquí, abre un issue.
+Solutions to the most common Packet Tracer 9, bridge, CLI, and rendering issues.
 
 > [!NOTE]
-> El servidor MCP escucha en `127.0.0.1:39001` y el bridge HTTP hacia
-> Packet Tracer en `127.0.0.1:54321`. Casi todos los problemas terminan
-> siendo uno de esos dos puertos.
+> The MCP HTTP server listens on `127.0.0.1:39001` and the internal Packet Tracer bridge listens on `127.0.0.1:54321`. Almost every connectivity problem traces back to one of those two localhost ports.
 
 ---
 
-## Índice
+## 1. Bridge Not Connected (`BRIDGE_NOT_CONNECTED`)
 
-- [El cliente MCP no conecta](#el-cliente-mcp-no-conecta)
-- [`pt_bridge_status` devuelve `connected: false`](#pt_bridge_status-devuelve-connected-false)
-- [El canvas de Packet Tracer no se mueve](#el-canvas-de-packet-tracer-no-se-mueve)
-- [`pt_cook_topology` se cuelga o tarda mucho](#pt_cook_topology-se-cuelga-o-tarda-mucho)
-- [`pt_run_cli` devuelve salida vacía o truncada](#pt_run_cli-devuelve-salida-vacía-o-truncada)
-- [`bun install` falla](#bun-install-falla)
-- [`bun test` falla en mi máquina pero pasa en CI](#bun-test-falla-en-mi-máquina-pero-pasa-en-ci)
-- [La extensión no aparece en el menú Extensions de PT](#la-extensión-no-aparece-en-el-menú-extensions-de-pt)
-- [Acceso desde otra máquina de la LAN](#acceso-desde-otra-máquina-de-la-lan)
-- [Errores típicos en el wizard de Cisco](#errores-típicos-en-el-wizard-de-cisco)
+**Symptoms:** `pt_bridge_status` returns `connected: false`, or live tools fail with `Packet Tracer bridge is not connected`.
+
+**Fixes:**
+1. Confirm **Cisco Packet Tracer 9** is open and the **Student MCP Bridge** window is visible (**Extensions -> Scripting -> Student MCP Bridge**).
+2. Click **Start** in the extension window if it is paused, and verify the Server URL is `http://127.0.0.1:54321`.
+3. If you set `STU_PT_BRIDGE_TOKEN` on the server, paste the exact same token into the extension's **Bridge Token** input box and reconnect.
+4. Make sure no older `packet-tracer-mcp` or second `stu-packet-tracer-mcp` instance is already holding port `54321` (see Section 7).
 
 ---
 
-## El cliente MCP no conecta
+## 2. Windows Firewall Prompt
 
-**Síntoma:** Claude Code / Cursor / VS Code dice "no se puede conectar"
-o "MCP server failed to start".
+**Symptoms:** Windows Defender Firewall pops up when starting `stu-packet-tracer-mcp`, or the Packet Tracer extension stays on `Reconnecting...`.
 
-**Causa probable:**
-1. El servidor no está corriendo.
-2. El puerto está ocupado por otra instancia.
-3. El cliente apunta a la URL incorrecta.
+**Fixes:**
+- Allow **Private networks** when Windows prompts for `bun.exe` or `stu-packet-tracer-mcp.exe`.
+- Both the MCP endpoint and the bridge bind strictly to `127.0.0.1` (loopback only), so no external network access is needed.
+- If a firewall rule blocked loopback earlier, open **Windows Defender Firewall -> Allow an app** and remove the block rule for `bun.exe`.
 
-**Fix:**
+---
+
+## 3. Router or Switch Stuck at `[yes/no]` Initial Configuration Dialog
+
+**Symptoms:** A freshly added router prints `Would you like to enter the initial configuration dialog? [yes/no]:` and ignores commands.
+
+**How `stu-packet-tracer-mcp` handles it:**
+- The CLI engine (`src/cli/engine.ts`) automatically detects the `[yes/no]:` dialog during `prepareDevice`, sends `no` + Enter, elevates with `enable`, and applies `terminal length 0`.
+- If a device was still booting when you called the tool, wait 5–10 seconds for IOS to finish decompressing (`##########`) and re-run the tool.
+- You can also open the device CLI tab once in Packet Tracer and press Enter to confirm the prompt is ready.
+
+---
+
+## 4. Truncated Output or `--More--` Pagination
+
+**Symptoms:** Long commands like `show running-config` stop halfway through on older switches or routers.
+
+**How `stu-packet-tracer-mcp` handles it:**
+- The CLI engine sends `terminal length 0` once per device per session.
+- On Packet Tracer models that reject `terminal length 0` (such as some Catalyst 2960 images), the engine detects `--More--` mid-output, automatically feeds Space until the prompt returns, and strips every `--More--` artifact and backspace sequence from the cleaned output.
+- Before sending a new command, the engine checks the console tail for any leftover `--More--` and sends `q` first so the first character of your next command is never eaten.
+
+---
+
+## 5. First Ping Fails (1–3 Packets Dropped)
+
+**Symptoms:** Running `ping` from a PC to another subnet fails on the first attempt (`Request timed out`), then succeeds immediately on the second attempt.
+
+**Cause:** Normal Cisco Packet Tracer behavior — ARP resolution along every hop drops the first 1–3 ICMP echo requests.
+
+**Fixes:**
+- Use `pt_ping_matrix`, which automatically runs an ARP warm-up ping before recording the final pass/fail status.
+- When using `pt_ping` or `pt_capture_pc_command` manually on a fresh topology, run one quick ping first (or set `warmup: true` if supported) before capturing the final screenshot.
+
+---
+
+## 6. PNG Screenshot Not Generated (SVG Only)
+
+**Symptoms:** `pt_capture_cli`, `pt_render_terminal`, or `pt_export_report` outputs `.svg` files cleanly, with a warning that PNG rasterization was skipped.
+
+**Cause:** `@resvg/resvg-wasm` could not initialize its WebAssembly module or load the bundled DejaVu Sans Mono `.ttf` files from `assets/fonts/`.
+
+**Fixes:**
+1. Verify `assets/fonts/DejaVuSansMono.ttf` and `assets/fonts/DejaVuSansMono-Bold.ttf` exist in your installation directory.
+2. If you cloned from source, run `bun install` to ensure `@resvg/resvg-wasm` is installed.
+3. Run `bun test tests/render-terminal.test.ts` to verify PNG generation locally.
+4. Note: SVG files always work without WASM, and `report.html` embeds inline SVGs directly so browser **Print -> Save as PDF** still renders crisp vector terminals.
+
+---
+
+## 7. Port Already in Use (`54321` or `39001`)
+
+**Symptoms:** Server startup fails with `EADDRINUSE` or `Failed to start server. Is port 54321 in use?`
+
+**Cause:** Another `stu-packet-tracer-mcp` process (for example, one started by Claude Desktop or Cursor in `stdio` mode, or an older upstream `packet-tracer-mcp` daemon) is already listening on port `54321`.
+
+**Fixes:**
+
+Find and stop the existing process:
 
 ```bash
-# 1. Comprueba si hay algo escuchando en :39001
-lsof -i :39001
-
-# 2. Si no hay nada, arranca el servidor
-bun run src/index.ts
-
-# 3. Verifica que responde
-curl -s http://127.0.0.1:39001/mcp -X POST \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}'
+# Linux / macOS
+lsof -i :54321
+kill <PID>
 ```
 
-Si la respuesta tiene `"result"`, el servidor está bien y el problema
-es la configuración del cliente — revisa que la URL en
-`.vscode/mcp.json` o `claude_desktop_config.json` sea
-`http://127.0.0.1:39001/mcp` exacta.
+```powershell
+# Windows (PowerShell)
+Get-NetTCPConnection -LocalPort 54321 | Select-Object OwningProcess
+Stop-Process -Id <PID>
+```
 
----
-
-## `pt_bridge_status` devuelve `connected: false`
-
-**Síntoma:** Llamas a `pt_bridge_status` y devuelve algo como
-`{ connected: false, lastSeen: null }`.
-
-**Causa probable:** Packet Tracer no está corriendo, o la extensión
-`packettracer-mcp` no está cargada en su Script Engine, o el bootstrap
-no se ha ejecutado.
-
-**Fix:**
-
-1. Abre Packet Tracer 9 y comprueba que la extensión está activa
-   (Extensions → Manage Extensions). Si no aparece, copia
-   `extension/` al directorio de extensiones de PT y reinicia.
-2. Abre el editor de scripts (Extensions → Scripting) y pega el
-   bootstrap del `README.md`. Pulsa **Run**.
-3. La consola del editor debería mostrar `[mcp-bridge] polling…` cada
-   ~500 ms.
-4. Vuelve a llamar a `pt_bridge_status`.
-
-Si el bootstrap se ejecuta sin error pero `connected` sigue en `false`,
-mira en `lsof -i :54321` para confirmar que el puerto del bridge está
-abierto.
-
----
-
-## El canvas de Packet Tracer no se mueve
-
-**Síntoma:** Las llamadas a `pt_add_device`, `pt_create_link`, etc. no
-fallan, pero el canvas de PT está vacío.
-
-**Causa probable:** El polling del bridge está parado (el bootstrap se
-detiene si cierras el editor de scripts), o estás trabajando contra una
-instancia distinta de PT.
-
-**Fix:**
-
-- Vuelve a pegar el bootstrap y pulsa **Run** de nuevo. El polling
-  necesita estar vivo en todo momento; si cierras la pestaña del
-  editor, se para.
-- Si tienes dos PT abiertos, cierra uno. El bridge no distingue entre
-  instancias; gana la primera que enganche.
-
----
-
-## `pt_cook_topology` se cuelga o tarda mucho
-
-**Síntoma:** Una receta tarda mucho más de lo esperado o nunca devuelve
-respuesta.
-
-**Causa probable:**
-- Receta grande (`chain` con 8+ routers o `campus_vlan` con 16 VLANs)
-  saturando el wizard del IOS.
-- Algún device anterior dejó CLI a medio confirmar y los siguientes
-  comandos se acumulan.
-
-**Fix:**
-
-1. Llama a `pt_clear_canvas` y vuelve a empezar.
-2. Reduce parámetros: `routers: 3-5`, `vlans: 4-8`.
-3. Si reproduces el cuelgue de forma fiable, abre un issue con el
-   `pt_inspect_canvas` justo antes y los parámetros exactos.
-
-> [!TIP]
-> Para topologías grandes, llama primero a `pt_plan_review` con la
-> intención. Te dice si el plan es viable y cuántos comandos va a
-> emitir.
-
----
-
-## `pt_run_cli` devuelve salida vacía o truncada
-
-**Síntoma:** Ejecutas `show running-config` y vuelve `""` o un trozo.
-
-**Causa probable:** El paginador de IOS está activo o el comando aún no
-ha terminado cuando el bridge lee la salida.
-
-**Fix:**
-
-- El servidor inyecta `terminal length 0` automáticamente al entrar al
-  modo privilegiado. Si lo ves cortado, probablemente la sesión es
-  recién creada y aún no se ha aplicado — repite la llamada una vez
-  más.
-- Para `show` muy largos, considera `pt_show_running` (paginación
-  manejada) o `pt_run_cli_bulk` con `commands: ["show running-config"]`
-  en lugar de uno suelto.
-
----
-
-## `bun install` falla
-
-**Síntoma:**
-- `error: lockfile had changes, but lockfile is frozen`
-- `error: failed to install dependencies`
-
-**Fix:**
+Or run on alternate ports by setting environment variables:
 
 ```bash
-# Asegúrate de Bun >= 1.2
-bun --version
-
-# Si la versión es vieja
-curl -fsSL https://bun.sh/install | bash
-
-# Reinstala desde cero
-rm -rf node_modules bun.lock
-bun install
+BRIDGE_PORT=54322 MCP_PORT=39002 bunx stu-packet-tracer-mcp
 ```
 
----
-
-## `bun test` falla en mi máquina pero pasa en CI
-
-Las suites de tests no necesitan PT corriendo (todo es unit). Si fallan
-en local pero pasan en CI:
-
-- Comprueba que estás en `main` o has hecho `git pull`.
-- `bun --version` >= 1.2.
-- Borra `node_modules` y reinstala.
-- Si hay un test que necesita filesystem (snapshots), comprueba que la
-  ruta `docs/smoke-runs/` existe.
+*(If you change `BRIDGE_PORT`, update the Server URL inside the Packet Tracer extension window to match `http://127.0.0.1:54322`.)*
 
 ---
 
-## La extensión no aparece en el menú Extensions de PT
+## 8. Emergency Paste-In Bootstrap
 
-**Causa probable:** PT no ha cargado el directorio porque el JSON
-manifesto está mal o porque PT está en modo "no extensiones de
-terceros".
+If you have not packaged `extension/dist/stu-mcp-bridge.pts` yet and want to test immediately:
 
-**Fix:**
-
-1. Comprueba la ruta en la que PT busca extensiones (varía por OS).
-   Mira el manual de PT: `Help → Documentation`.
-2. Copia la carpeta `extension/` completa, no solo los archivos.
-3. Reinicia PT.
-4. Si después de eso sigue sin aparecer, abre la consola de PT (View →
-   Show Console) y busca errores que mencionen `packet-tracer-mcp`.
-
----
-
-## Acceso desde otra máquina de la LAN
-
-Por defecto el MCP escucha solo en loopback. Para exponerlo a la LAN:
-
-```bash
-PACKETTRACER_MCP_HOST=0.0.0.0 bun run src/index.ts
-```
-
-> [!WARNING]
-> Eso abre el puerto al resto de la red. El servidor **no implementa
-> autenticación**. Asume entorno local de confianza. Si lo expones,
-> mete un firewall o restringe el acceso por IP.
-
----
-
-## Errores típicos en el wizard de Cisco
-
-PT lanza un wizard la primera vez que entras a `enable` en algunos
-modelos. El servidor lo neutraliza con `enable` + `terminal length 0` +
-`configure terminal` + `no ip domain-lookup`. Si ves el wizard saliendo
-en CLI:
-
-- Llama a `pt_run_cli` con `command: "no"` para abortarlo.
-- Vuelve a intentar el comando original.
-
-Esto se trataba en versiones antiguas de PT, en 9.0.0.0810 está
-estable, pero si ves comportamiento raro reporta el modelo exacto del
-device.
+1. Start `stu-packet-tracer-mcp`.
+2. In Packet Tracer 9, open **Extensions -> Scripting -> Configure PT Script Modules...** -> **New**, open its webview debug console, or call `pt_bridge_bootstrap` (available offline) to print the minimal JavaScript polling snippet.
+3. For normal daily use, package the open-source English extension in `extension/src/` by following [docs/BUILD_EXTENSION.md](BUILD_EXTENSION.md).

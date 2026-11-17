@@ -1,6 +1,6 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 8 (Completed) -> Phase 9 (Starting)
+## Current phase: 9 (Completed — Ready for Human Handoff & v0.1.0 Release)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
@@ -12,9 +12,22 @@
 - [x] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
 - [x] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
 - [x] P8 Report export (pt_export_report -> MD, HTML, DOCX)
-- [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, REPORTS, release workflow)
+- [x] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, REPORTS, ARCHITECTURE, CHANGELOG, CONTRIBUTING, release workflow, standalone binary PNG test, RELEASE_CHECKLIST)
 
 ## Log
+### 2026-11-17 Phase 9 Documentation, Packaging & Release Prep
+- Wrote student-first `README.md` with 5-minute quick start, first lab report walkthrough, terminal themes preview table, Teach Mode & academic integrity note, and upstream attribution.
+- Created/rewrote complete English documentation suite under `docs/`:
+  - `docs/QUICKSTART.md`, `docs/CLIENTS.md` (Claude Desktop, Antigravity, Cursor, VS Code, Gemini CLI — stdio first, HTTP second), `docs/TROUBLESHOOTING.md`, `docs/REPORTS.md` (embedding all 5 golden SVGs + verified JSON examples matching live strict schemas), `docs/ARCHITECTURE.md`.
+  - Removed stale upstream Spanish docs (`docs/BOOTSTRAP.md`, `docs/COVERAGE.md`, `docs/RECIPES.md`).
+- Added repository metadata & helper tooling:
+  - `CHANGELOG.md` (Keep a Changelog v0.1.0), `CONTRIBUTING.md`, `.github/ISSUE_TEMPLATE/bug_report.md`, `.github/ISSUE_TEMPLATE/feature_request.md`, `scripts/mcp-call.ts`.
+  - Updated `server.json` with all optional environment variables and `src/config.ts` to accept `STU_PT_*`, short (`MCP_HOST`, `MCP_PORT`, `BRIDGE_PORT`), and legacy `PACKETTRACER_*` env vars.
+  - Added `bun run check:tools` to `.github/workflows/ci.yml` and created tag-triggered `.github/workflows/release.yml` building standalone `bun-linux-x64`, `bun-windows-x64`, and `bun-darwin-arm64` binaries with SHA-256 checksums.
+  - Extended `scripts/check-english.ts` to scan `docs/`, `README.md`, `CHANGELOG.md`, and `CONTRIBUTING.md`.
+- Compiled standalone Linux binary (`bun run build`) and verified PNG rasterization (`28,643 B`, header `89 50 4e 47`) from an isolated `/tmp` directory with zero `stdout` output.
+- Wrote `docs/dev/RELEASE_CHECKLIST.md` with automated results and the 4 manual release steps for `fuih` (extension `.pts` packaging, live PT smoke test, GitHub push, tag & npm publish).
+- Verified via `bun run ci`: typecheck clean, English check clean (code + tests + extension + docs), `docs/TOOLS.md` clean, **403 pass, 0 fail across 35 files**.
 ### 2026-11-17 Phase 8 Lab Report Export
 - Installed `docx` (`9.15.4`) for native Microsoft Word `.docx` report generation.
 - Built report pipeline under `src/report/`:
