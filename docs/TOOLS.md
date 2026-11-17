@@ -126,31 +126,35 @@ Calculate IPv4 subnet details (network, broadcast, first/last usable host, subne
 
 ### `pt_capture_cli`
 
-Run one or more Cisco IOS commands on a router or switch and save crisp terminal-style screenshots (SVG and/or 2x PNG) ready for university lab reports. Automatically clears pagination so full outputs are captured. Returns absolute file paths and the cleaned CLI text.
+Run one or more Cisco IOS commands on a router or switch (or snapshot its current live CLI screen) and save authentic Packet Tracer 9 CLI screenshots (SVG and/or 2x PNG). By default includes live console scrollback history (previous commands, errors, prompts) so captures are indistinguishable from real Packet Tracer screenshots.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `device` | string | Yes | Router or switch name (e.g. 'R1', 'SW1'). |
-| `commands` | string[] \| string | Yes | One or more IOS commands to execute and capture (array or newline-separated string). |
+| `commands` | string[] \| string | No | One or more IOS commands to execute and capture (array or newline-separated string). Omit to snapshot the current live CLI screen without running a new command. |
 | `theme` | `"pt-classic"` \| `"dark"` \| `"putty"` \| `"high-contrast"` \| `"pc-cmd"` | No | Terminal color/chrome theme: pt-classic (default), dark, putty, high-contrast, or pc-cmd. (default: `"pt-classic"`) |
 | `format` | `"svg"` \| `"png"` \| `"both"` | No | Output image format: svg, png, or both (default). (default: `"both"`) |
 | `output_path` | string | No | Optional output file path (single/combined) or directory (multiple commands). Relative paths resolve under STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
-| `include_prompt` | boolean | No | Include the `<prompt> <command>` header line inside the terminal image. (default: `true`) |
+| `include_prompt` | boolean | No | Include the `<prompt><command>` header line when `include_history` is false. (default: `true`) |
+| `include_history` | boolean | No | Include the real live Packet Tracer CLI scrollback history (previous commands, errors, boot/session lines) above the new output so screenshots look like an authentic live CLI window (default: true). Set to false for clean single-command output only. (default: `true`) |
+| `history_lines` | integer | No | Number of visible scrollback lines when `include_history` is true (default: 42, matching a realistic Packet Tracer CLI window). (default: `42`) |
 | `combine` | boolean | No | Combine all commands into a single terminal image instead of one image per command. (default: `false`) |
 | `max_columns` | integer | No | Column width at which long output lines wrap. (default: `100`) |
 | `annotations` | object[] | No | Optional right-margin callout notes anchored to 1-based line numbers. |
 
 ### `pt_capture_pc_command`
 
-Run a Command Prompt command (`ping`, `ipconfig`, `tracert`, `arp -a`) on a Packet Tracer PC, Laptop, or Server and save a Windows Command Prompt-style screenshot (SVG and/or 2x PNG). Use this to capture host connectivity and IP evidence for lab reports.
+Run a Command Prompt command (`ping`, `ipconfig`, `tracert`, `arp -a`) on a Packet Tracer PC, Laptop, or Server (or snapshot its current Command Prompt screen) and save an authentic Packet Tracer 9 Desktop Command Prompt screenshot (SVG and/or 2x PNG). Includes real scrollback history by default.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `device` | string | Yes | End-device name (PC, Laptop, or Server, e.g. 'PC0', 'A'). |
-| `command` | string | Yes | Command Prompt command (e.g. 'ping 192.168.2.10', 'ipconfig', 'ipconfig /all', 'tracert 10.0.0.2', 'arp -a'). |
-| `theme` | `"pc-cmd"` \| `"dark"` \| `"pt-classic"` \| `"putty"` \| `"high-contrast"` | No | Terminal theme (defaults to 'pc-cmd' for authentic Windows Command Prompt styling). (default: `"pc-cmd"`) |
+| `command` | string | No | Command Prompt command (e.g. 'ping 192.168.2.10', 'ipconfig', 'ipconfig /all', 'tracert 10.0.0.2', 'arp -a'). Omit to snapshot the current live Command Prompt screen. |
+| `theme` | `"pc-cmd"` \| `"dark"` \| `"pt-classic"` \| `"putty"` \| `"high-contrast"` | No | Terminal theme (defaults to 'pc-cmd' for authentic Packet Tracer 9 Command Prompt styling). (default: `"pc-cmd"`) |
 | `format` | `"svg"` \| `"png"` \| `"both"` | No | Output image format: svg, png, or both (default). (default: `"both"`) |
 | `output_path` | string | No | Optional output path. Relative paths resolve under STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
+| `include_history` | boolean | No | Include the real live Packet Tracer Command Prompt scrollback history (previous pings, failures, ipconfig outputs) above the new command (default: true). Set to false for clean single-command output only. (default: `true`) |
+| `history_lines` | integer | No | Number of visible scrollback lines when `include_history` is true (default: 42). (default: `42`) |
 | `timeout_ms` | integer | No | Optional timeout in milliseconds to wait for command completion. |
 
 ### `pt_render_terminal` *(offline)*
@@ -191,6 +195,8 @@ Collect live topology screenshots, addressing table, optional ping matrix, and t
 | `format` | `"md"` \| `"html"` \| `"docx"`[] | No | Export formats to generate: 'docx' (Microsoft Word), 'html' (self-contained print-to-PDF), and/or 'md' (Markdown). (default: `["docx","md"]`) |
 | `output_dir` | string | No | Directory where the report and captures/ folder will be written. Relative paths resolve under STU_PT_OUTPUT_DIR. |
 | `default_theme` | `"pt-classic"` \| `"dark"` \| `"putty"` \| `"high-contrast"` \| `"pc-cmd"` | No | Default terminal screenshot theme for IOS CLI captures. (default: `"pt-classic"`) |
+| `include_history` | boolean | No | Include live Packet Tracer console scrollback history in CLI and Command Prompt screenshots (default: true). (default: `true`) |
+| `history_lines` | integer | No | Number of visible scrollback lines per screenshot when `include_history` is true (default: 42). (default: `42`) |
 | `include` | object | No | Toggle automatic report sections gathered from the live Packet Tracer canvas. (default: `{"topology_screenshot":true,"addressing_table":true,"ping_matrix":false}`) |
 | `sections` | object[] | No | Ordered lab sections containing prose answers, router/switch CLI screenshots, and PC Command Prompt captures. (default: `[]`) |
 | `save_pkt` | string | No | Optional filename or path to also save the live Packet Tracer `.pkt` file alongside the report. |

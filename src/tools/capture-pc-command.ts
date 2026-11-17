@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { enterCommandOffsetJs, readCliSliceJs } from "../cli/engine.js";
+import { enterCommandOffsetJs, readCliSliceJs, readConsoleScrollback } from "../cli/engine.js";
 import { renderAndSaveTerminal } from "../render/save.js";
 import type { ThemeName } from "../render/themes.js";
 import { resolveCanvasDevice } from "../util/devices.js";
@@ -9,13 +9,21 @@ import { defineTool } from "./define.js";
 
 const InputSchema = z.object({
   device: z.string().min(1).describe("End-device name (PC, Laptop, or Server, e.g. 'PC0', 'A')."),
-  command: z.string().min(1).describe("Command Prompt command (e.g. 'ping 192.168.2.10', 'ipconfig', 'ipconfig /all', 'tracert 10.0.0.2', 'arp -a')."),
+  command: z.string().min(1).optional().describe(
+    "Command Prompt command (e.g. 'ping 192.168.2.10', 'ipconfig', 'ipconfig /all', 'tracert 10.0.0.2', 'arp -a'). Omit to snapshot the current live Command Prompt screen.",
+  ),
   theme: z.enum(["pc-cmd", "dark", "pt-classic", "putty", "high-contrast"]).default("pc-cmd")
-    .describe("Terminal theme (defaults to 'pc-cmd' for authentic Windows Command Prompt styling)."),
+    .describe("Terminal theme (defaults to 'pc-cmd' for authentic Packet Tracer 9 Command Prompt styling)."),
   format: z.enum(["svg", "png", "both"]).default("both")
     .describe("Output image format: svg, png, or both (default)."),
   output_path: z.string().optional()
     .describe("Optional output path. Relative paths resolve under STU_PT_OUTPUT_DIR (default ./stu-pt-output/)."),
+  include_history: z.boolean().default(true).describe(
+    "Include the real live Packet Tracer Command Prompt scrollback history (previous pings, failures, ipconfig outputs) above the new command (default: true). Set to false for clean single-command output only.",
+  ),
+  history_lines: z.number().int().min(10).max(120).default(42).describe(
+    "Number of visible scrollback lines when `include_history` is true (default: 42).",
+  ),
   timeout_ms: z.number().int().min(2_000).max(90_000).optional()
     .describe("Optional timeout in milliseconds to wait for command completion."),
 });
@@ -59,72 +67,88 @@ export function formatPcTranscript(command: string, rawSlice: string): string[] 
 
 export const registerCapturePcCommandTool = defineTool({
   name: "pt_capture_pc_command",
-  description: "Run a Command Prompt command (`ping`, `ipconfig`, `tracert`, `arp -a`) on a Packet Tracer PC, Laptop, or Server and save a Windows Command Prompt-style screenshot (SVG and/or 2x PNG). Use this to capture host connectivity and IP evidence for lab reports.",
+  description: "Run a Command Prompt command (`ping`, `ipconfig`, `tracert`, `arp -a`) on a Packet Tracer PC, Laptop, or Server (or snapshot its current Command Prompt screen) and save an authentic Packet Tracer 9 Desktop Command Prompt screenshot (SVG and/or 2x PNG). Includes real scrollback history by default.",
   category: "Captures & Visuals",
   input: InputSchema,
-  handler: async ({ device, command, theme, format, output_path, timeout_ms }, { bridge }) => {
+  handler: async (
+    { device, command, theme, format, output_path, include_history, history_lines, timeout_ms },
+    { bridge },
+  ) => {
     const resolvedDevice = await resolveCanvasDevice(bridge, device);
-    const lower = command.trim().toLowerCase();
-    const defaultTimeout = lower.startsWith("tracert ")
-      ? 45_000
-      : lower.startsWith("ping ")
-        ? 25_000
-        : 5_000;
-    const waitMs = timeout_ms ?? defaultTimeout;
+    let sliceLines: string[] = [];
 
-    const initial = await bridge.sendAndWait(enterCommandOffsetJs(resolvedDevice, command), {
-      timeoutMs: 10_000,
-    });
-    if (initial === null) {
-      throw ptError("BRIDGE_TIMEOUT", `Timed out sending "${command}" to PC "${resolvedDevice}".`);
-    }
-    if (initial.startsWith("ERR:") || initial.startsWith("ERROR:")) {
-      throw ptError("PC_CLI_ERROR", `Packet Tracer returned "${initial}" for "${resolvedDevice}".`);
-    }
+    if (command) {
+      const lower = command.trim().toLowerCase();
+      const defaultTimeout = lower.startsWith("tracert ")
+        ? 45_000
+        : lower.startsWith("ping ")
+          ? 25_000
+          : 5_000;
+      const waitMs = timeout_ms ?? defaultTimeout;
 
-    const sep = initial.indexOf("|");
-    const offset = sep >= 0 ? Number(initial.slice(0, sep)) : 0;
-    let slice = sep >= 0 ? initial.slice(sep + 1) : initial;
-
-    const deadline = Date.now() + waitMs;
-    let stableReads = 0;
-    let lastLen = slice.length;
-
-    while (Date.now() < deadline) {
-      if (isPcCommandDone(command, slice)) {
-        if (slice.length === lastLen) {
-          stableReads++;
-          if (stableReads >= 2) break;
-        } else {
-          lastLen = slice.length;
-          stableReads = 0;
-        }
+      const initial = await bridge.sendAndWait(enterCommandOffsetJs(resolvedDevice, command), {
+        timeoutMs: 10_000,
+      });
+      if (initial === null) {
+        throw ptError("BRIDGE_TIMEOUT", `Timed out sending "${command}" to PC "${resolvedDevice}".`);
       }
-      await sleep(350);
-      const next = await bridge.sendAndWait(readCliSliceJs(resolvedDevice, offset), { timeoutMs: 8_000 });
-      if (next !== null && !next.startsWith("ERR:") && !next.startsWith("ERROR:")) {
-        if (next.length !== lastLen) {
-          slice = next;
-          lastLen = next.length;
-          stableReads = 0;
-        } else {
-          slice = next;
-          if (isPcCommandDone(command, slice) || (!lower.startsWith("ping ") && !lower.startsWith("tracert ") && slice.trim().length > 0)) {
+      if (initial.startsWith("ERR:") || initial.startsWith("ERROR:")) {
+        throw ptError("PC_CLI_ERROR", `Packet Tracer returned "${initial}" for "${resolvedDevice}".`);
+      }
+
+      const sep = initial.indexOf("|");
+      const offset = sep >= 0 ? Number(initial.slice(0, sep)) : 0;
+      let slice = sep >= 0 ? initial.slice(sep + 1) : initial;
+
+      const deadline = Date.now() + waitMs;
+      let stableReads = 0;
+      let lastLen = slice.length;
+
+      while (Date.now() < deadline) {
+        if (isPcCommandDone(command, slice)) {
+          if (slice.length === lastLen) {
             stableReads++;
             if (stableReads >= 2) break;
+          } else {
+            lastLen = slice.length;
+            stableReads = 0;
+          }
+        }
+        await sleep(350);
+        const next = await bridge.sendAndWait(readCliSliceJs(resolvedDevice, offset), { timeoutMs: 8_000 });
+        if (next !== null && !next.startsWith("ERR:") && !next.startsWith("ERROR:")) {
+          if (next.length !== lastLen) {
+            slice = next;
+            lastLen = next.length;
+            stableReads = 0;
+          } else {
+            slice = next;
+            if (isPcCommandDone(command, slice) || (!lower.startsWith("ping ") && !lower.startsWith("tracert ") && slice.trim().length > 0)) {
+              stableReads++;
+              if (stableReads >= 2) break;
+            }
           }
         }
       }
+
+      sliceLines = formatPcTranscript(command, slice);
     }
 
-    const lines = formatPcTranscript(command, slice);
-    const defaultSubpath = `captures/${slugify(resolvedDevice)}-${slugify(command)}`;
+    let renderLines: string[];
+    if (include_history || !command) {
+      const targetLines = Math.min(120, Math.max(history_lines, sliceLines.length + 8));
+      renderLines = await readConsoleScrollback(bridge, resolvedDevice, targetLines, "C:\\>");
+    } else {
+      renderLines = sliceLines;
+    }
+
+    const defaultSubpath = `captures/${slugify(resolvedDevice)}-${slugify(command ?? "cmd-screen")}`;
     const basePath = resolveOutputPath(output_path, defaultSubpath);
 
     const saved = await renderAndSaveTerminal(
       {
         title: `${resolvedDevice} — Command Prompt`,
-        lines,
+        lines: renderLines,
         theme: theme as ThemeName,
       },
       basePath,
@@ -132,24 +156,25 @@ export const registerCapturePcCommandTool = defineTool({
     );
 
     const outLines = [
-      `Captured PC Command Prompt on ${resolvedDevice}: \`${command}\` (theme: ${theme})`,
+      `Captured PC Command Prompt on ${resolvedDevice}: ${command ? `\`${command}\`` : "(live screen snapshot)"} (theme: ${theme}, history: ${include_history ? "on" : "off"})`,
     ];
     if (saved.svgPath) outLines.push(`  SVG: ${saved.svgPath}`);
     if (saved.pngPath) outLines.push(`  PNG: ${saved.pngPath}`);
     if (saved.pngWarning) outLines.push(`  Note: ${saved.pngWarning}`);
-    outLines.push(`--- output ---\n${lines.join("\n")}`);
+    outLines.push(`--- output ---\n${renderLines.join("\n")}`);
 
     return {
       text: outLines.join("\n"),
       images: saved.pngBase64 ? [{ data: saved.pngBase64, mimeType: "image/png" }] : undefined,
       structured: {
         device: resolvedDevice,
-        command,
+        command: command ?? null,
         theme,
         format,
+        include_history,
         svgPath: saved.svgPath ?? null,
         pngPath: saved.pngPath ?? null,
-        output: lines.join("\n"),
+        output: renderLines.join("\n"),
       },
     };
   },

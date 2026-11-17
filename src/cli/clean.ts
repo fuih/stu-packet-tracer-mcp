@@ -109,3 +109,62 @@ export function cleanCliOutput(raw: string, command: string): CleanedCliOutput {
     prompt,
   };
 }
+
+export interface ScrollbackOptions {
+  /** Whether `raw` was sliced mid-buffer so the first line may be partial. */
+  readonly dropFirstPartialLine?: boolean;
+  /** Optional prompt (e.g. `R1#` or `C:\\>`) appended if the tail does not already end with one. */
+  readonly fallbackPrompt?: string;
+}
+
+/**
+ * Clean a live Packet Tracer console scrollback buffer while preserving full
+ * session realism: previous commands, errors, boot/timeout banners, and outputs.
+ * Only strips ANSI escapes, `--More--` pager artifacts, and literal backspaces,
+ * then returns the bottom `maxLines` lines matching a real PT viewport.
+ */
+export function cleanConsoleScrollback(
+  raw: string,
+  maxLines = 42,
+  opts: ScrollbackOptions = {},
+): string[] {
+  if (!raw) {
+    return opts.fallbackPrompt ? [opts.fallbackPrompt] : [""];
+  }
+
+  let text = raw.replace(ANSI_REGEX, "");
+  text = text.replace(MORE_PAGER_REGEX, "");
+  text = applyBackspaces(text);
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  const lines = text.split("\n");
+
+  if (opts.dropFirstPartialLine && lines.length > 1) {
+    lines.shift();
+  }
+
+  // Trim trailing blank lines at the very end of the buffer
+  while (lines.length > 0 && lines[lines.length - 1]!.trim() === "") {
+    lines.pop();
+  }
+
+  // Ensure the final prompt appears at the bottom if requested
+  if (opts.fallbackPrompt) {
+    const last = (lines[lines.length - 1] ?? "").trim();
+    const endsWithIosPrompt = detectPrompt(last) !== null;
+    const endsWithCmdPrompt = /^[A-Za-z]:\\[^>]*>$/.test(last);
+    if (!endsWithIosPrompt && !endsWithCmdPrompt) {
+      lines.push(opts.fallbackPrompt);
+    }
+  }
+
+  const limit = Math.max(10, Math.floor(maxLines));
+  const sliced = lines.length > limit ? lines.slice(lines.length - limit) : lines;
+
+  // Avoid starting the top of the viewport with empty padding lines
+  while (sliced.length > 1 && sliced[0]!.trim() === "") {
+    sliced.shift();
+  }
+
+  return sliced.length > 0 ? sliced : [opts.fallbackPrompt ?? ""];
+}

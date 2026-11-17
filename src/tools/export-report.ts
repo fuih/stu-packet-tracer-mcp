@@ -44,6 +44,10 @@ const InputSchema = z.object({
     .describe("Directory where the report and captures/ folder will be written. Relative paths resolve under STU_PT_OUTPUT_DIR."),
   default_theme: ThemeEnum.default("pt-classic")
     .describe("Default terminal screenshot theme for IOS CLI captures."),
+  include_history: z.boolean().default(true)
+    .describe("Include live Packet Tracer console scrollback history in CLI and Command Prompt screenshots (default: true)."),
+  history_lines: z.number().int().min(10).max(120).default(42)
+    .describe("Number of visible scrollback lines per screenshot when `include_history` is true (default: 42)."),
   include: z.object({
     topology_screenshot: z.boolean().default(true).describe("Include a PNG screenshot of the Logical workspace canvas."),
     addressing_table: z.boolean().default(true).describe("Include the live Device/Interface/IP/Mask/Gateway table."),
@@ -65,7 +69,7 @@ export const registerExportReportTool = defineTool({
   category: "Reports",
   input: InputSchema,
   handler: async (
-    { title, student, course, format, output_dir, default_theme, include, sections, save_pkt },
+    { title, student, course, format, output_dir, default_theme, include_history, history_lines, include, sections, save_pkt },
     { bridge },
   ) => {
     const slug = slugify(title, 48);
@@ -79,6 +83,8 @@ export const registerExportReportTool = defineTool({
       outputDir: reportDir,
       include,
       defaultTheme: default_theme as ThemeName,
+      includeHistory: include_history,
+      historyLines: history_lines,
       sections,
       savePkt: save_pkt,
     });

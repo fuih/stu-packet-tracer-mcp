@@ -1,7 +1,7 @@
 import type { Bridge } from "../bridge/http-bridge.js";
 import { jsStr } from "../ipc/escape.js";
 import { withLabel, truncateForLabel } from "../ipc/label.js";
-import { cleanCliOutput } from "./clean.js";
+import { cleanCliOutput, cleanConsoleScrollback } from "./clean.js";
 import { detectPrompt, type CliMode } from "./prompt.js";
 
 const NET = "ipc.network()";
@@ -125,8 +125,8 @@ function endsWithUnexpectedPrompt(text: string): boolean {
   return /(?:\[confirm\]|\[yes\/no\]:?)\s*$/i.test(trimmed);
 }
 
-async function readTail(bridge: Bridge, device: string): Promise<{ len: number; tail: string }> {
-  const res = await bridge.sendAndWait(readCliTailJs(device, 300), { timeoutMs: 8_000 });
+async function readTail(bridge: Bridge, device: string, chars = 300): Promise<{ len: number; tail: string }> {
+  const res = await bridge.sendAndWait(readCliTailJs(device, chars), { timeoutMs: 8_000 });
   if (res === null) throw new Error(`Timed out reading CLI tail of "${device}".`);
   if (res.startsWith("ERR:")) throw new Error(`Device "${device}" error: ${res}`);
   try {
@@ -134,6 +134,24 @@ async function readTail(bridge: Bridge, device: string): Promise<{ len: number; 
   } catch {
     return { len: res.length, tail: res };
   }
+}
+
+/**
+ * Read and clean the live Packet Tracer console scrollback buffer (IOS CLI or PC
+ * Command Prompt), returning the bottom `maxLines` lines as they appear in PT.
+ */
+export async function readConsoleScrollback(
+  bridge: Bridge,
+  device: string,
+  maxLines = 42,
+  fallbackPrompt?: string,
+  maxChars = 16_000,
+): Promise<string[]> {
+  const { len, tail } = await readTail(bridge, device, maxChars);
+  return cleanConsoleScrollback(tail, maxLines, {
+    dropFirstPartialLine: len > maxChars,
+    fallbackPrompt,
+  });
 }
 
 /**

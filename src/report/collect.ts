@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Bridge } from "../bridge/http-bridge.js";
-import { enterCommandOffsetJs, readCliSliceJs, runCli } from "../cli/engine.js";
+import { enterCommandOffsetJs, readCliSliceJs, readConsoleScrollback, runCli } from "../cli/engine.js";
 import { fileSaveAsNoPromptJs } from "../ipc/files.js";
 import { workspaceImageBase64Js } from "../ipc/sim.js";
 import { renderSvgToPng } from "../render/png.js";
@@ -33,6 +33,8 @@ export interface CollectReportOptions {
     readonly ping_matrix?: boolean;
   };
   readonly defaultTheme?: ThemeName;
+  readonly includeHistory?: boolean;
+  readonly historyLines?: number;
   readonly sections: readonly ReportSectionInput[];
   readonly savePkt?: string;
 }
@@ -149,6 +151,8 @@ export async function collectLabReport(
 
   // 4. Per-section CLI & PC captures
   const sections: ReportSectionData[] = [];
+  const includeHistory = opts.includeHistory ?? true;
+  const historyLines = opts.historyLines ?? 42;
   let capCounter = 0;
 
   for (const sec of opts.sections) {
@@ -161,11 +165,18 @@ export async function collectLabReport(
         capCounter++;
         const cli = await runCli(bridge, dev, cmd);
         const prompt = cli.prompt || `${dev}#`;
-        const lines = [
-          `${prompt} ${cmd}`,
-          ...(cli.output ? cli.output.split(/\r?\n/) : []),
-          prompt,
-        ];
+        let lines: string[];
+        if (includeHistory) {
+          const cmdLineCount = (cli.output ? cli.output.split(/\r?\n/).length : 0) + 3;
+          const targetLines = Math.min(120, Math.max(historyLines, cmdLineCount + 8));
+          lines = await readConsoleScrollback(bridge, dev, targetLines, prompt);
+        } else {
+          lines = [
+            `${prompt}${cmd}`,
+            ...(cli.output ? cli.output.split(/\r?\n/) : []),
+            prompt,
+          ];
+        }
         const stem = path.join(capturesDir, `${String(capCounter).padStart(2, "0")}-${slugify(dev)}-${slugify(cmd)}`);
         const saved = await renderAndSaveTerminal(
           { title: `${dev} - CLI`, lines, theme },
@@ -192,7 +203,10 @@ export async function collectLabReport(
       capCounter++;
       const dev = await resolveCanvasDevice(bridge, pcReq.device);
       const theme: ThemeName = pcReq.theme ?? "pc-cmd";
-      const lines = await capturePcSlice(bridge, dev, pcReq.command);
+      const sliceLines = await capturePcSlice(bridge, dev, pcReq.command);
+      const lines = includeHistory
+        ? await readConsoleScrollback(bridge, dev, Math.min(120, Math.max(historyLines, sliceLines.length + 8)), "C:\\>")
+        : sliceLines;
       const stem = path.join(capturesDir, `${String(capCounter).padStart(2, "0")}-${slugify(dev)}-${slugify(pcReq.command)}`);
       const saved = await renderAndSaveTerminal(
         { title: `${dev} — Command Prompt`, lines, theme },

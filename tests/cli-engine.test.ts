@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { detectPrompt } from "../src/cli/prompt.js";
-import { cleanCliOutput } from "../src/cli/clean.js";
+import { cleanCliOutput, cleanConsoleScrollback } from "../src/cli/clean.js";
 import { runCli, ensureMode, resetCliCache } from "../src/cli/engine.js";
 import type { Bridge } from "../src/bridge/http-bridge.js";
 
@@ -58,6 +58,29 @@ describe("CLI output cleaner", () => {
     const cleaned = cleanCliOutput(raw, "show version");
     expect(cleaned.output).toBe("Cisco IOS\nLine 2");
     expect(cleaned.prompt).toBe("R1#");
+  });
+
+  test("cleanConsoleScrollback preserves prior commands, errors, and drops partial top line", () => {
+    const raw = [
+      "chopped-partial-line",
+      "R1>enable",
+      "R1#terminal length 0",
+      "             ^",
+      "% Invalid input detected at '^' marker.",
+      "R1#show ip arp",
+      "Internet  10.0.0.1   -   000A.4176.01BA  ARPA   FastEthernet0/0",
+      " --More-- \x08\x08\x08\x08\x08\x08\x08\x08\x08\x08R1#show ip route",
+      "S*   0.0.0.0/0 [1/0] via 50.0.0.2",
+      "R1#",
+      "",
+    ].join("\n");
+
+    const lines = cleanConsoleScrollback(raw, 20, { dropFirstPartialLine: true, fallbackPrompt: "R1#" });
+    expect(lines[0]).toBe("R1>enable");
+    expect(lines.some(l => l.includes("% Invalid input detected"))).toBe(true);
+    expect(lines.some(l => l.includes("R1#show ip arp"))).toBe(true);
+    expect(lines.some(l => l.includes("--More--"))).toBe(false);
+    expect(lines[lines.length - 1]).toBe("R1#");
   });
 });
 
