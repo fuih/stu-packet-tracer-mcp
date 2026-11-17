@@ -1,11 +1,11 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 1 (Completed) -> Phase 2 (Starting)
+## Current phase: 2 (Completed) -> Phase 3 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
 - [x] P1 English + CI (Translation of all Spanish strings, check:english script, GitHub Actions CI)
-- [ ] P2 Bridge v1 (Correlation IDs, long-poll /v1/next, origin check, drop late results)
+- [x] P2 Bridge v1 (Correlation IDs, long-poll /v1/next, origin check, drop late results)
 - [ ] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
 - [ ] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
 - [ ] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md)
@@ -15,6 +15,20 @@
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 2 Bridge v1 (Fixes F1 & F2)
+- Created `src/bridge/protocol.ts` defining `CommandEnvelope`, `ResultEnvelope`, and `BridgeV1Status`.
+- Rebuilt `src/bridge/http-bridge.ts`:
+  - Correlation IDs (`crypto.randomUUID()`) for every command; pending map tracks each request individually.
+  - F1 fix: late responses arriving after timeout are logged and dropped — never delivered to subsequent callers.
+  - Long-poll `GET /v1/next?wait=25000` resolves immediately when work arrives (returns 204 on timeout).
+  - Strict single-flight execution serialization (Script Engine runs one command at a time).
+  - Origin validation (`isAllowedOrigin`): rejects foreign browser origins with 403 while permitting PT (`pt-sm://`), `file://`, loopback, and missing origin.
+  - Optional token authentication via `STU_PT_BRIDGE_TOKEN` env var (`X-Stu-Token` header).
+  - Full backward compatibility maintained for legacy `/next`, `/result` (hex), `/ping`, `/status`.
+- Updated `src/server.ts` branding to `stu-packet-tracer-mcp`.
+- Added unit test suite `tests/bridge.test.ts` (9 tests covering long-poll latency, F1 late-result regression, x10 concurrent serialization, origin blocking, token auth, and legacy hex compatibility).
+- Verified via `bun run ci`: typecheck clean, English check clean, **357 pass, 0 fail across 30 files**.
+
 ### 2026-11-17 Phase 1 English-only + CI Hygiene
 - Translated all remaining Spanish strings, comments, and IPC labels in `src/` and `tests/`:
   - `src/index.ts`, `src/ipc/label.ts`, `src/ipc/generator.ts`, `src/canvas/layout.ts`, `src/canvas/snapshot.ts`
