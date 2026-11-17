@@ -2,11 +2,12 @@
 
 > **Auto-generated file.** Do not edit manually — run `bun run docs:tools` to regenerate.
 
-Total registered tools: **60**. All input schemas are strict (`additionalProperties: false`).
+Total registered tools: **66**. All input schemas are strict (`additionalProperties: false`).
 
 ## Categories
 
 - [Catalog & Status](#catalog-status) (5)
+- [Student Tools](#student-tools) (6)
 - [Captures & Visuals](#captures-visuals) (4)
 - [CLI & Diagnostics](#cli-diagnostics) (4)
 - [Simulation & Testing](#simulation-testing) (5)
@@ -55,6 +56,70 @@ Validate a topology plan BEFORE touching the canvas. The LLM declares devices, l
 | `links` | object[] | Yes | Every cable you plan to create. |
 | `lans` | object[] | No | Optional but recommended: declare each LAN's role (user vs transit) and which endpoints belong to it. Lets the validator catch the common mistake of adding PCs to a transit segment. (default: `[]`) |
 | `notes` | string | No | Free-form context: the brief, the user's intent, anything that would help a human reader confirm the plan. |
+
+## Student Tools
+
+### `pt_addressing_table`
+
+Build the classic Device / Interface / IP Address / Subnet Mask / Default Gateway addressing table from the live Packet Tracer canvas. Use this to verify lab addressing or drop straight into a university lab report.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `devices` | string[] | No | Optional filter: only include these device names. |
+| `include_unassigned` | boolean | No | Include ports that do not have an IPv4 address assigned. (default: `false`) |
+| `format` | `"markdown"` \| `"csv"` \| `"json"` | No | Preferred text output format (structuredContent always contains rows, markdown, and csv). (default: `"markdown"`) |
+
+### `pt_check_lab`
+
+Verify a list of networking lab objectives (connectivity pings, routing table entries, up/up interfaces, running-config directives, and VLANs) against the live Packet Tracer topology. Returns a pass/fail scorecard with exact CLI evidence so students can self-check before submitting.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `objectives` | object \| object \| object \| object \| object[] | Yes | List of lab grading objectives to verify (ping, route, interface_up, config_contains, vlan_exists). |
+
+### `pt_explain_output` *(offline)*
+
+Translate Cisco IOS command output (`show ip route`, `show ip arp`, `show ip interface brief`, `show vlan brief`, `show running-config`) into plain-English explanations line by line. Works completely offline as a study aid for understanding route codes, [AD/metric], ARP ages, and interface status.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `output` | string | Yes | Raw Cisco IOS CLI output to explain. |
+| `command` | string | No | Optional command hint (e.g. 'show ip route', 'show ip arp', 'show ip interface brief', 'show vlan brief', 'show running-config'). Auto-detected if omitted. |
+
+### `pt_lab_template` *(offline)*
+
+Build or preview one of 10 classic university networking labs (`static-routing`, `default-route`, `rip-v2`, `ospf-single-area`, `vlan-basic`, `inter-vlan-roas`, `dhcp`, `nat-pat`, `acl-standard`, `acl-extended`) with custom subnets. Pass `dry_run: true` (or enable `STU_PT_TEACH_MODE=1`) to receive the complete step-by-step IOS commands as a study guide without modifying the canvas.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `template` | `"static-routing"` \| `"default-route"` \| `"rip-v2"` \| `"ospf-single-area"` \| `"vlan-basic"` \| `"inter-vlan-roas"` \| `"dhcp"` \| `"nat-pat"` \| `"acl-standard"` \| `"acl-extended"` | Yes | University networking lab template: static-routing, default-route, rip-v2, ospf-single-area, vlan-basic, inter-vlan-roas, dhcp, nat-pat, acl-standard, or acl-extended. |
+| `lan_a` | string | No | Optional LAN A subnet (e.g. '192.168.10.0/24'). |
+| `lan_b` | string | No | Optional LAN B subnet (e.g. '192.168.20.0/24'). |
+| `transit` | string | No | Optional router-to-router transit subnet (e.g. '10.0.0.0/30'). |
+| `router_prefix` | string | No | Optional router naming prefix (default 'R' -> R1, R2). |
+| `dry_run` | boolean | No | Teach mode: if true (or STU_PT_TEACH_MODE=1), return the full topology plan and Cisco IOS commands without touching Packet Tracer. |
+
+### `pt_ping_matrix`
+
+Test full mesh connectivity by pinging between every pair of hosts on the canvas (with automatic ARP warm-up first so initial drops don't cause false failures). Returns a pass/fail matrix with plain-English failure diagnostics and optional SVG/PNG table image.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `devices` | string[] | No | Optional list of hosts to include (e.g. ['PC0', 'PC1', 'Server0']). Omit to test all end-hosts on the canvas. |
+| `warmup` | boolean | No | Run one warm-up ping first so ARP resolves before the graded test (recommended). (default: `true`) |
+| `timeout_ms` | integer | No | Per-ping timeout in milliseconds. (default: `20000`) |
+| `render_image` | boolean | No | Also save the ping matrix as an SVG + PNG image for lab reports. (default: `false`) |
+| `output_path` | string | No | Optional output path when render_image is true (default ./stu-pt-output/captures/ping-matrix). |
+
+### `pt_subnet_calc` *(offline)*
+
+Calculate IPv4 subnet details (network, broadcast, first/last usable host, subnet mask, OSPF/ACL wildcard mask) or generate a complete Variable Length Subnet Mask (VLSM) allocation plan offline. Use this before configuring router interfaces and labs.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `cidr` | string | Yes | IPv4 network in CIDR notation (e.g. '192.168.10.0/24') or plain IPv4 address when `mask` is supplied. |
+| `mask` | string | No | Optional dotted-quad subnet mask (e.g. '255.255.255.192') if `cidr` omits `/prefix`. |
+| `vlsm_requirements` | object[] | No | Optional list of subnets with required host counts to compute a non-overlapping VLSM addressing plan. |
 
 ## Captures & Visuals
 

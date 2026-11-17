@@ -1,0 +1,100 @@
+{
+  "id": "dhcp",
+  "title": "Cisco IOS DHCP Server Lab",
+  "summary": "Configure R1 as an IOS DHCP server with excluded static addresses, default-router, and DNS server options.",
+  "learningObjectives": [
+    "Reserve static addresses using `ip dhcp excluded-address`",
+    "Create a DHCP pool with `network`, `default-router`, and `dns-server`",
+    "Verify client leases via `show ip dhcp binding`"
+  ],
+  "devices": [
+    {
+      "name": "R1",
+      "model": "2911",
+      "ptType": "2911",
+      "x": 360,
+      "y": 140
+    },
+    {
+      "name": "SW1",
+      "model": "2960-24TT",
+      "ptType": "2960-24TT",
+      "x": 360,
+      "y": 260
+    },
+    {
+      "name": "PC1",
+      "model": "PC-PT",
+      "ptType": "PC-PT",
+      "x": 220,
+      "y": 380
+    },
+    {
+      "name": "PC2",
+      "model": "PC-PT",
+      "ptType": "PC-PT",
+      "x": 500,
+      "y": 380
+    }
+  ],
+  "links": [
+    {
+      "from": "R1",
+      "fromPort": "GigabitEthernet0/0",
+      "to": "SW1",
+      "toPort": "GigabitEthernet0/1",
+      "cable": "straight"
+    },
+    {
+      "from": "PC1",
+      "fromPort": "FastEthernet0",
+      "to": "SW1",
+      "toPort": "FastEthernet0/1",
+      "cable": "straight"
+    },
+    {
+      "from": "PC2",
+      "fromPort": "FastEthernet0",
+      "to": "SW1",
+      "toPort": "FastEthernet0/2",
+      "cable": "straight"
+    }
+  ],
+  "pcs": [],
+  "cliSteps": [
+    {
+      "device": "R1",
+      "summary": "Configure LAN interface and IOS DHCP pool",
+      "commands": [
+        "enable",
+        "configure terminal",
+        "hostname R1",
+        "no ip domain-lookup",
+        "interface GigabitEthernet0/0",
+        " ip address 192.168.1.1 255.255.255.0",
+        " no shutdown",
+        "exit",
+        "ip dhcp excluded-address 192.168.1.1 192.168.1.10",
+        "ip dhcp pool LAN_POOL",
+        " network 192.168.1.0 255.255.255.0",
+        " default-router 192.168.1.1",
+        " dns-server 8.8.8.8",
+        "end",
+        "write memory"
+      ]
+    }
+  ],
+  "objectives": [
+    {
+      "type": "interface_up",
+      "device": "R1",
+      "interface": "GigabitEthernet0/0",
+      "expected_ip": "192.168.1.1"
+    },
+    {
+      "type": "config_contains",
+      "device": "R1",
+      "text": "ip dhcp pool LAN_POOL"
+    }
+  ]
+}

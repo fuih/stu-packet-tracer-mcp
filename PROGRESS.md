@@ -1,6 +1,6 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 6 (Completed) -> Phase 7 (Starting)
+## Current phase: 7 (Completed) -> Phase 8 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
@@ -10,11 +10,22 @@
 - [x] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
 - [x] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md; human `.pts` packaging step documented)
 - [x] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
-- [ ] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
+- [x] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
 - [ ] P8 Report export (pt_export_report -> MD, HTML, DOCX)
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 7 Student Features (Fixes F8)
+- Implemented 6 student-focused tools and core modules under `src/student/` (66 total registered tools):
+  - `pt_addressing_table` (`src/student/addressing.ts`, `src/tools/addressing-table.ts`): single-round-trip live Device/Interface/IP/Mask/Gateway table exported as Markdown, CSV, and structured JSON.
+  - `pt_ping_matrix` (`src/student/ping-matrix.ts`, `src/tools/ping-matrix.ts`): full mesh host ping matrix with automatic ARP warm-up ping first (F8 fix), failure diagnostics (missing gateway, unreachable, return route), and optional standalone SVG + PNG matrix table image.
+  - `pt_check_lab` (`src/student/lab-check.ts`, `src/tools/check-lab.ts`): objective verifier supporting `ping`, `route`, `interface_up`, `config_contains`, and `vlan_exists` with pass/fail scorecards and CLI evidence.
+  - `pt_explain_output` (`src/student/explain.ts`, `src/tools/explain-output.ts`, offline): rule-based plain-English explainer for `show ip route`, `show ip arp`, `show ip interface brief`, `show vlan brief`, and `show running-config`.
+  - `pt_subnet_calc` (`src/student/subnet-calc.ts`, `src/tools/subnet-calc.ts`, offline): IPv4 subnet details + largest-first VLSM allocation planner reusing `src/canvas/subnetting.ts`.
+  - `pt_lab_template` (`src/student/lab-templates.ts`, `src/tools/lab-template.ts`): 10 university networking lab templates (`static-routing`, `default-route`, `rip-v2`, `ospf-single-area`, `vlan-basic`, `inter-vlan-roas`, `dhcp`, `nat-pat`, `acl-standard`, `acl-extended`) with JSON examples in `examples/labs/`.
+  - Teach Mode (`src/student/teach.ts`): off by default; when `STU_PT_TEACH_MODE=1` or `dry_run: true`, configuration and template tools output complete IOS commands and study steps without modifying the canvas.
+- Added 12 offline tests in `tests/student-features.test.ts`.
+- Regenerated `docs/TOOLS.md` and verified via `bun run ci`: typecheck clean, English check clean, `docs/TOOLS.md` clean, **400 pass, 0 fail across 34 files**.
 ### 2026-11-17 Phase 6 Terminal-Style CLI Screenshots (Fixes F7)
 - Bundled `DejaVuSansMono.ttf`, `DejaVuSansMono-Bold.ttf`, and Bitstream Vera/DejaVu `LICENSE` in `assets/fonts/` and added `assets` to `package.json` `files`.
 - Installed `@resvg/resvg-wasm` (`2.6.2`) and added `src/types/assets.d.ts` for Bun asset embedding (`with { type: "file" }`).

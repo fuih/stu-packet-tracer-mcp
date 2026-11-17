@@ -43,6 +43,12 @@ import { registerScreenshotTool } from "./screenshot.js";
 import { registerCaptureCliTool } from "./capture-cli.js";
 import { registerRenderTerminalTool } from "./render-terminal.js";
 import { registerCapturePcCommandTool } from "./capture-pc-command.js";
+import { registerAddressingTableTool } from "./addressing-table.js";
+import { registerPingMatrixTool } from "./ping-matrix.js";
+import { registerCheckLabTool } from "./check-lab.js";
+import { registerExplainOutputTool } from "./explain-output.js";
+import { registerSubnetCalcTool } from "./subnet-calc.js";
+import { registerLabTemplateTool } from "./lab-template.js";
 import { registerSavePktTool } from "./save-pkt.js";
 import { registerOpenPktTool } from "./open-pkt.js";
 import { registerSavePktToBytesTool } from "./save-pkt-to-bytes.js";
@@ -126,6 +132,13 @@ export const ALL_TOOLS: readonly ToolModule[] = [
   registerCaptureCliTool,
   registerRenderTerminalTool,
   registerCapturePcCommandTool,
+  // Student tools (Phase 7)
+  registerAddressingTableTool,
+  registerPingMatrixTool,
+  registerCheckLabTool,
+  registerExplainOutputTool,
+  registerSubnetCalcTool,
+  registerLabTemplateTool,
   registerClearCanvasTool,
   // .pkt persistence (Phase 9)
   registerSavePktTool,
