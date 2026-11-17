@@ -1,6 +1,6 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 7 (Completed) -> Phase 8 (Starting)
+## Current phase: 8 (Completed) -> Phase 9 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
@@ -11,10 +11,21 @@
 - [x] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md; human `.pts` packaging step documented)
 - [x] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
 - [x] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
-- [ ] P8 Report export (pt_export_report -> MD, HTML, DOCX)
-- [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
+- [x] P8 Report export (pt_export_report -> MD, HTML, DOCX)
+- [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, REPORTS, release workflow)
 
 ## Log
+### 2026-11-17 Phase 8 Lab Report Export
+- Installed `docx` (`9.15.4`) for native Microsoft Word `.docx` report generation.
+- Built report pipeline under `src/report/`:
+  - `src/report/model.ts`: structured `LabReport` data model (metadata, topology PNG, addressing table, ping matrix, ordered sections with CLI & PC CMD captures).
+  - `src/report/collect.ts`: live collector capturing workspace topology PNG, addressing table, optional ping matrix SVG+PNG, IOS CLI terminal captures, PC Command Prompt captures, and optional `.pkt` save.
+  - `src/report/markdown.ts`: Markdown report referencing relative `captures/` images with fenced code fallbacks.
+  - `src/report/html.ts`: single self-contained HTML report with inline CSS, inline vector SVGs, embedded base64 topology PNG, and `@media print` rules for clean browser PDF export.
+  - `src/report/docx.ts`: native `.docx` generator with title block, styled shaded addressing table, PNG IHDR aspect-ratio sizing, embedded 2x PNG terminal & topology screenshots (monospace fallback when PNG unavailable), and `Page X of Y` footer.
+- Registered `pt_export_report` (`src/tools/export-report.ts`) in `src/tools/index.ts` (67 total registered tools).
+- Added 3 offline report export tests in `tests/report-export.test.ts` verifying Markdown, self-contained HTML, and real OOXML/ZIP `.docx` magic bytes (`50 4B 03 04`) with embedded PNG captures.
+- Regenerated `docs/TOOLS.md` and verified via `bun run ci`: typecheck clean, English check clean, `docs/TOOLS.md` clean, **403 pass, 0 fail across 35 files**.
 ### 2026-11-17 Phase 7 Student Features (Fixes F8)
 - Implemented 6 student-focused tools and core modules under `src/student/` (66 total registered tools):
   - `pt_addressing_table` (`src/student/addressing.ts`, `src/tools/addressing-table.ts`): single-round-trip live Device/Interface/IP/Mask/Gateway table exported as Markdown, CSV, and structured JSON.

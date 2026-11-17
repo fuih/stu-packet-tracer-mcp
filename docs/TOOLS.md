@@ -2,13 +2,14 @@
 
 > **Auto-generated file.** Do not edit manually — run `bun run docs:tools` to regenerate.
 
-Total registered tools: **66**. All input schemas are strict (`additionalProperties: false`).
+Total registered tools: **67**. All input schemas are strict (`additionalProperties: false`).
 
 ## Categories
 
 - [Catalog & Status](#catalog-status) (5)
 - [Student Tools](#student-tools) (6)
 - [Captures & Visuals](#captures-visuals) (4)
+- [Reports](#reports) (1)
 - [CLI & Diagnostics](#cli-diagnostics) (4)
 - [Simulation & Testing](#simulation-testing) (5)
 - [Topology & Canvas](#topology-canvas) (13)
@@ -175,6 +176,24 @@ Capture the Packet Tracer Logical workspace canvas as a PNG or JPG image. Use th
 | --- | --- | --- | --- |
 | `format` | `"PNG"` \| `"JPG"` | No | Image format. PNG is lossless and recommended for lab reports. (default: `"PNG"`) |
 | `output_path` | string | No | Output file path. Relative paths resolve against STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
+
+## Reports
+
+### `pt_export_report`
+
+Collect live topology screenshots, addressing table, optional ping matrix, and terminal-style CLI/PC screenshots from Packet Tracer and export a polished university lab report in Microsoft Word (.docx), self-contained print-to-PDF HTML (.html), and/or Markdown (.md). Returns the absolute paths of all generated files.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `title` | string | Yes | Report title (e.g. 'Workshop: Static & Default Routing'). |
+| `student` | object | No | Optional student metadata printed on the title block. |
+| `course` | string | No | Optional course name or code (e.g. 'Computer Networks — Lab 4'). |
+| `format` | `"md"` \| `"html"` \| `"docx"`[] | No | Export formats to generate: 'docx' (Microsoft Word), 'html' (self-contained print-to-PDF), and/or 'md' (Markdown). (default: `["docx","md"]`) |
+| `output_dir` | string | No | Directory where the report and captures/ folder will be written. Relative paths resolve under STU_PT_OUTPUT_DIR. |
+| `default_theme` | `"pt-classic"` \| `"dark"` \| `"putty"` \| `"high-contrast"` \| `"pc-cmd"` | No | Default terminal screenshot theme for IOS CLI captures. (default: `"pt-classic"`) |
+| `include` | object | No | Toggle automatic report sections gathered from the live Packet Tracer canvas. (default: `{"topology_screenshot":true,"addressing_table":true,"ping_matrix":false}`) |
+| `sections` | object[] | No | Ordered lab sections containing prose answers, router/switch CLI screenshots, and PC Command Prompt captures. (default: `[]`) |
+| `save_pkt` | string | No | Optional filename or path to also save the live Packet Tracer `.pkt` file alongside the report. |
 
 ## CLI & Diagnostics
 

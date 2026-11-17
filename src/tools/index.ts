@@ -49,6 +49,7 @@ import { registerCheckLabTool } from "./check-lab.js";
 import { registerExplainOutputTool } from "./explain-output.js";
 import { registerSubnetCalcTool } from "./subnet-calc.js";
 import { registerLabTemplateTool } from "./lab-template.js";
+import { registerExportReportTool } from "./export-report.js";
 import { registerSavePktTool } from "./save-pkt.js";
 import { registerOpenPktTool } from "./open-pkt.js";
 import { registerSavePktToBytesTool } from "./save-pkt-to-bytes.js";
@@ -139,6 +140,8 @@ export const ALL_TOOLS: readonly ToolModule[] = [
   registerExplainOutputTool,
   registerSubnetCalcTool,
   registerLabTemplateTool,
+  // Reports (Phase 8)
+  registerExportReportTool,
   registerClearCanvasTool,
   // .pkt persistence (Phase 9)
   registerSavePktTool,
