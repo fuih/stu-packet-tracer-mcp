@@ -35,7 +35,7 @@ const DEFAULT_POLL = 1_500;
 
 function readSinceMarkerJs(device: string, marker: string): string {
   return withLabel(
-    `Leyendo CLI de ${device} desde marker "${truncateForLabel(marker, 30)}"`,
+    `Reading CLI output of ${device} since marker "${truncateForLabel(marker, 30)}"`,
     `(function(){` +
       `var d=ipc.network().getDevice(${jsStr(device)});` +
       `if(!d)return "ERR:not_found";` +

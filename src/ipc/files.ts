@@ -34,7 +34,7 @@ const SFM = "ipc.systemFileManager()";
  */
 export function fileSaveAsNoPromptJs(path: string): string {
   return withLabel(
-    `Guardando .pkt en ${path}`,
+    `Saving .pkt to ${path}`,
     `(function(){` +
       `var a=${APP};` +
       `if(!a)return "ERR:no_app_window";` +
@@ -53,7 +53,7 @@ export function fileSaveAsNoPromptJs(path: string): string {
  */
 export function fileOpenJs(path: string): string {
   return withLabel(
-    `Abriendo .pkt desde ${path}`,
+    `Opening .pkt from ${path}`,
     `(function(){` +
       `var a=${APP};` +
       `if(!a)return "ERR:no_app_window";` +
@@ -70,7 +70,7 @@ export function fileOpenJs(path: string): string {
  */
 export function fileNewJs(promptUser: boolean): string {
   return withLabel(
-    `Vaciando workspace y creando uno nuevo${promptUser ? " (con diálogo)" : ""}`,
+    `Emptying workspace and creating new one${promptUser ? " (with prompt)" : ""}`,
     `(function(){` +
       `var a=${APP};` +
       `if(!a)return "ERR:no_app_window";` +
@@ -82,28 +82,28 @@ export function fileNewJs(promptUser: boolean): string {
 
 export function fileExistsJs(path: string): string {
   return withLabel(
-    `Comprobando si existe el archivo ${path}`,
+    `Checking if file exists: ${path}`,
     `(function(){try{return String(${SFM}.fileExists(${jsStr(path)}));}catch(e){return "ERR:"+e.message;}})()`,
   );
 }
 
 export function getFileSizeJs(path: string): string {
   return withLabel(
-    `Leyendo tamaño en bytes de ${path}`,
+    `Reading file size in bytes for ${path}`,
     `(function(){try{return String(${SFM}.getFileSize(${jsStr(path)}));}catch(e){return "ERR:"+e.message;}})()`,
   );
 }
 
 export function getFileCheckSumJs(path: string): string {
   return withLabel(
-    `Calculando checksum de ${path}`,
+    `Calculating checksum for ${path}`,
     `(function(){try{return String(${SFM}.getFileCheckSum(${jsStr(path)}));}catch(e){return "ERR:"+e.message;}})()`,
   );
 }
 
 export function removeFileJs(path: string): string {
   return withLabel(
-    `Eliminando archivo ${path}`,
+    `Removing file ${path}`,
     `(function(){try{return String(${SFM}.removeFile(${jsStr(path)}));}catch(e){return "ERR:"+e.message;}})()`,
   );
 }
@@ -117,7 +117,7 @@ export function removeFileJs(path: string): string {
 export function getFileMagicHexJs(path: string, n: number): string {
   const need = Math.max(1, Math.min(n, 32));
   return withLabel(
-    `Leyendo magic bytes (${need}) de ${path}`,
+    `Reading magic bytes (${need}) from ${path}`,
     `(function(){` +
       `try{` +
         `var b64=${SFM}.getFileBinaryContents(${jsStr(path)});` +
@@ -148,7 +148,7 @@ export function getFileMagicHexJs(path: string, n: number): string {
  */
 export function getDeviceCountJs(): string {
   return withLabel(
-    "Contando dispositivos en el canvas",
+    "Counting devices on canvas",
     `String(ipc.network().getDeviceCount())`,
   );
 }
@@ -161,7 +161,7 @@ export function getDeviceCountJs(): string {
  */
 export function getPtTempDirJs(): string {
   return withLabel(
-    "Resolviendo carpeta de usuario de Packet Tracer",
+    "Resolving Packet Tracer user folder",
     `(function(){` +
       `try{` +
         `var a=${APP};` +
@@ -184,7 +184,7 @@ export function getPtTempDirJs(): string {
  */
 export function getFileBinaryContentsJs(path: string): string {
   return withLabel(
-    `Leyendo contenido binario de ${path}`,
+    `Reading binary contents of ${path}`,
     `(function(){` +
       `try{` +
         `var b=${SFM}.getFileBinaryContents(${jsStr(path)});` +
@@ -205,7 +205,7 @@ export function getFileBinaryContentsChunkJs(path: string, offset: number, len: 
   const o = Math.max(0, Math.floor(offset));
   const l = Math.max(1, Math.floor(len));
   return withLabel(
-    `Leyendo chunk [${o}, ${o + l}) de ${path}`,
+    `Reading chunk [${o}, ${o + l}) of ${path}`,
     `(function(){` +
       `try{` +
         `var b=${SFM}.getFileBinaryContents(${jsStr(path)});` +
@@ -222,7 +222,7 @@ export function getFileBinaryContentsChunkJs(path: string, offset: number, len: 
  */
 export function getFileBinaryLengthJs(path: string): string {
   return withLabel(
-    `Leyendo longitud base64 de ${path}`,
+    `Reading base64 length of ${path}`,
     `(function(){` +
       `try{` +
         `var b=${SFM}.getFileBinaryContents(${jsStr(path)});` +
@@ -241,7 +241,7 @@ export function getFileBinaryLengthJs(path: string): string {
  */
 export function writeBinaryToFileJs(path: string, base64: string): string {
   return withLabel(
-    `Escribiendo binario en ${path} (${base64.length} chars b64)`,
+    `Writing binary to ${path} (${base64.length} b64 chars)`,
     `(function(){` +
       `try{` +
         `var ok=${SFM}.writeBinaryToFile(${jsStr(path)},${jsStr(base64)});` +

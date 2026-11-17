@@ -27,7 +27,7 @@ export type SimulationMode = "simulation" | "realtime";
 export function setSimulationModeJs(mode: SimulationMode): string {
   const fn = mode === "simulation" ? "showSimulationMode" : "showRealtimeMode";
   return withLabel(
-    `Cambiando a modo ${mode === "simulation" ? "Simulation" : "Realtime"}`,
+    `Switching to ${mode === "simulation" ? "Simulation" : "Realtime"} mode`,
     `(function(){` +
       `var sw=${APP}.getRSSwitch();` +
       `if(!sw)return "ERR:no_rsswitch";` +
@@ -46,7 +46,7 @@ export function setSimulationModeJs(mode: SimulationMode): string {
  */
 export function getSimulationStateJs(): string {
   return withLabel(
-    "Leyendo estado de simulación",
+    "Reading simulation state",
     `(function(){` +
       `var p=${APP}.getSimulationPanel();` +
       `if(!p)return "ERR:no_sim_panel";` +
@@ -71,12 +71,12 @@ export function simulationControlJs(action: SimulationAction): string {
     action === "forward" ? "forward" :
     "resetSimulation";
   const verb =
-    action === "play" ? "Reproduciendo" :
-    action === "back" ? "Retrocediendo paso de" :
-    action === "forward" ? "Avanzando paso de" :
-    "Reseteando";
+    action === "play" ? "Playing" :
+    action === "back" ? "Stepping back" :
+    action === "forward" ? "Stepping forward" :
+    "Resetting";
   return withLabel(
-    `${verb} simulación`,
+    `${verb} simulation`,
     `(function(){` +
       `var p=${APP}.getSimulationPanel();` +
       `if(!p)return "ERR:no_sim_panel";` +
@@ -99,7 +99,7 @@ export function simulationControlJs(action: SimulationAction): string {
  */
 export function addSimplePduJs(source: string, dest: string): string {
   return withLabel(
-    `Añadiendo Simple PDU ${source} → ${dest}`,
+    `Adding Simple PDU ${source} → ${dest}`,
     `(function(){` +
       `var u=${APP}.getUserCreatedPDU();` +
       `if(!u)return "ERR:no_user_pdu";` +
@@ -116,7 +116,7 @@ export function addSimplePduJs(source: string, dest: string): string {
  */
 export function firePduJs(index: number): string {
   return withLabel(
-    `Lanzando PDU #${index|0} del escenario`,
+    `Firing scenario PDU #${index|0}`,
     `(function(){` +
       `var u=${APP}.getUserCreatedPDU();` +
       `if(!u)return "ERR:no_user_pdu";` +
@@ -132,7 +132,7 @@ export function firePduJs(index: number): string {
  */
 export function deletePduJs(index: number): string {
   return withLabel(
-    `Eliminando PDU #${index|0} del escenario`,
+    `Deleting scenario PDU #${index|0}`,
     `(function(){` +
       `var u=${APP}.getUserCreatedPDU();` +
       `if(!u)return "ERR:no_user_pdu";` +
@@ -151,7 +151,7 @@ export function deletePduJs(index: number): string {
  */
 export function clearCanvasJs(prompt: boolean): string {
   return withLabel(
-    `Limpiando canvas${prompt ? " (con diálogo)" : ""}`,
+    `Clearing canvas${prompt ? " (with prompt)" : ""}`,
     `(function(){` +
       `try{var ok=${APP}.fileNew(${prompt ? "true" : "false"});` +
         `return "OK|"+(ok?"true":"false");` +
@@ -174,7 +174,7 @@ export type ImageFormat = "PNG" | "JPG";
  */
 export function workspaceImageBase64Js(format: ImageFormat): string {
   return withLabel(
-    `Capturando workspace lógico como ${format} (base64)`,
+    `Capturing logical workspace as ${format} (base64)`,
     `(function(){` +
       `var bytes=${LW}.getWorkspaceImage(${jsStr(format)});` +
       `if(!bytes||bytes.length===0)return "ERR:empty_image";` +
@@ -206,7 +206,7 @@ export function workspaceImageBase64Js(format: ImageFormat): string {
  */
 export function listDeviceNamesJs(): string {
   return withLabel(
-    "Listando nombres de dispositivos del canvas",
+    "Listing device names on canvas",
     `(function(){` +
       `var n=${NET};` +
       `var c=n.getDeviceCount();` +

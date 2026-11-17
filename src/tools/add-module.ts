@@ -44,7 +44,7 @@ export const registerAddModuleTool: ToolModule = ({ bridge, server }) => {
       //
       // Note: the family check (HWIC vs NIM) is intentionally NOT enforced
       // as a hard error here. PT 9 has been observed to accept HWIC-2T in
-      // ISR4xxx NIM bays "por compatibilidad" (see AGENTS.md). We surface
+      // ISR4xxx NIM bays "for compatibility" (see AGENTS.md). We surface
       // the mismatch as a hint after the install succeeds, but don't gate
       // the call — being stricter than PT would block legitimate use.
       const model = await fetchDeviceModel(bridge, device);

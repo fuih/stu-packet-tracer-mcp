@@ -1,88 +1,85 @@
 /**
  * Layout policy for the live PT canvas — v2 (subtree-width tree layout).
  *
- * Una sola fuente de verdad para coordenadas X/Y, así:
- *   1. Las recetas no inventan números mágicos cada una.
- *   2. `pt_add_device` puede auto-colocar cuando el caller deja x/y en blanco.
- *   3. `pt_auto_layout` re-cuadra un canvas existente en bloque.
+ * Single source of truth for X/Y coordinates:
+ *   1. Recipes do not invent magic numbers independently.
+ *   2. `pt_add_device` can auto-place when caller leaves x/y blank.
+ *   3. `pt_auto_layout` neatly rearranges an existing canvas in bulk.
  *
- * # Por qué v2
+ * # Why v2
  *
- * El v1 reproducía mecánicamente la rejilla del prototipo Python: clouds
- * todos en la fila superior, switches centrados en la columna del router,
- * endpoints centrados en la columna del switch. Eso colapsa cuando un
- * router tiene varios switches (caen en la misma columna) y cuando hay
- * más de tres clouds (el banner superior se llena y el resto pisa los
- * routers). El v2 es topology-aware: cada router reserva el ancho que
- * realmente necesita su sub-árbol y los hijos se reparten dentro de ese
- * presupuesto.
+ * v1 mechanically reproduced the Python prototype grid: clouds
+ * all in the top row, switches centered in the router's column,
+ * endpoints centered in the switch's column. That collapsed when a
+ * router had multiple switches (they fell in the same column) and when there
+ * were more than three clouds (the top banner overflowed and stepped on
+ * routers). v2 is topology-aware: each router reserves the width that its
+ * subtree actually needs and children are distributed within that budget.
  *
- * # Algoritmo
+ * # Algorithm
  *
- *   1. Adyacencia desde `snapshot.links`.
- *   2. Backbone — recorrido BFS de routers siguiendo enlaces router↔router,
- *      arrancando del router más a la izquierda en X actual. Mantiene el
- *      orden visual que el usuario ya tenía.
- *   3. Para cada router, clasificar vecinos no-router en:
- *        - switches (cada uno con su propio sub-árbol de endpoints)
- *        - access points (banda inmediatamente sobre el router)
- *        - clouds (mitad arriba, mitad abajo, alternando)
- *        - endpoints directos (cuando un PC se enchufa al router sin switch)
+ *   1. Adjacency from `snapshot.links`.
+ *   2. Backbone — BFS traversal of routers following router↔router links,
+ *      starting from the leftmost router in current X. Preserves the
+ *      visual order that the user already had.
+ *   3. For each router, classify non-router neighbors into:
+ *        - switches (each with its own endpoint subtree)
+ *        - access points (band immediately above the router)
+ *        - clouds (half above, half below, alternating)
+ *        - direct endpoints (when a PC connects to router without a switch)
  *        - servers
- *   4. Calcular subtreeWidth(router) = unidades de PC_X_SPACING que necesita
- *      su subárbol = max(1, endpoints_directos, switches × ancho_switch,
- *      clouds_below). Cada switch a su vez aporta ancho proporcional a sus
- *      endpoints.
- *   5. Colocar routers horizontalmente repartiendo presupuesto de ancho —
- *      el centro de cada router queda en `cursor + width/2`, el siguiente
- *      empieza en `cursor + width + GAP`.
- *   6. Colocar hijos dentro del slot del router:
- *        - APs sobre el router, centrados.
- *        - Switches debajo del router, distribuidos según sus propios anchos.
- *        - Endpoints de cada switch, centrados bajo el switch (segunda fila
- *          si saturan el ancho disponible).
- *        - Endpoints directos al router, en la fila de endpoints.
- *        - Clouds: las primeras arriba (Y_CLOUD), el resto abajo
- *          (Y_CLOUD_BOTTOM) — replica el patrón de la imagen de referencia
- *          donde cada router tiene LANs por encima y por debajo.
- *        - Servers: derecha del switch padre, o columna lateral si no hay.
- *   7. Nodos compartidos por dos routers (ej. una nube Internet entre R2 y
- *      R3): se centran entre los routers que los comparten.
- *   8. Huérfanos (sin ruta a ningún router): mantienen su categoría pero
- *      van a una columna libre a la derecha.
+ *   4. Calculate subtreeWidth(router) = units of PC_X_SPACING needed by its
+ *      subtree = max(1, direct_endpoints, switches × switch_width,
+ *      clouds_below). Each switch in turn contributes width proportional to
+ *      its endpoints.
+ *   5. Place routers horizontally distributing the width budget —
+ *      the center of each router is at `cursor + width/2`, the next
+ *      begins at `cursor + width + GAP`.
+ *   6. Place children within the router's slot:
+ *        - APs above router, centered.
+ *        - Switches below router, distributed according to their widths.
+ *        - Endpoints of each switch, centered under switch (second row
+ *          if they saturate available width).
+ *        - Endpoints directly on router, in endpoints row.
+ *        - Clouds: first half above (Y_CLOUD), rest below (Y_CLOUD_BOTTOM) —
+ *          replicating the reference pattern where each router has LANs above and below.
+ *        - Servers: right of parent switch, or lateral column if none.
+ *   7. Nodes shared between two routers (e.g. Internet cloud between R2 and
+ *      R3): centered between the routers sharing them.
+ *   8. Orphans (no path to any router): maintain category band but go to a
+ *      free column on the far right.
  *
- * Idempotente: posiciones redondeadas a entero, ordenación estable por
- * nombre dentro de cada grupo, así correr `pt_auto_layout` dos veces sobre
- * el mismo canvas no produce el segundo set de moves.
+ * Idempotent: coordinates rounded to integer, stable sort by name within each
+ * group, so running `pt_auto_layout` twice on the same canvas produces no
+ * secondary moves.
  *
- * Bandas Y por categoría:
- *   cloud_top    y =  20  (clouds "altas")
+ * Y bands by category:
+ *   cloud_top    y =  20  ("top" clouds)
  *   router       y = 100
  *   ap / wlc     y = 175
  *   switch       y = 250
  *   endpoint     y = 400  (pc / laptop / phone / printer / iot / ...)
  *   server       y = 480
- *   cloud_bottom y = 560  (clouds "bajas" — segunda mitad, segunda fila)
+ *   cloud_bottom y = 560  ("bottom" clouds — second half, second row)
  *
- * # Routers de tránsito (segundo piso)
+ * # Transit routers (second tier)
  *
- * Un router cuya única función topológica es PUENTEAR a otros routers
- * (RInternet entre R2 y R3 en RO2-P1, ISP entre dos sedes, etc.) no debería
- * ocupar slot en la fila de routers — visualmente queda fuera de la
- * jerarquía de oficinas y obliga a cables que cruzan la pantalla.
+ * A router whose sole topological function is BRIDGING other routers
+ * (RInternet between R2 and R3, ISP between two branches, etc.) should not
+ * occupy a slot in the main router row — visually it sits outside the
+ * office hierarchy and forces cables that criss-cross the screen.
  *
- * Se detectan con `isTransitRouter` (ver función) y van a un segundo piso
- * con sus propias bandas Y desplazadas. Su X se calcula como promedio de
- * centros de los routers backbone con los que conectan, así caen
- * literalmente "entre" sus vecinos.
+ * These are detected via `isTransitRouter` and placed on a second tier
+ * with their own shifted Y bands. Their X is computed as the average center
+ * of the backbone routers they connect to, falling neatly "between" neighbors.
  *
  *   transit_router    y = 400
  *   transit_switch    y = 530
  *   transit_endpoint  y = 680
  *   transit_server    y = 760
  *
- * El subárbol del router de tránsito (su switch privado + WebServer típico)
- * usa esas bandas en lugar de las del backbone.
+ * The transit router's subtree (private switch + typical WebServer)
+ * uses those bands instead of backbone bands.
  */
 
 import type { DeviceCategory } from "../ipc/constants.js";
@@ -99,7 +96,7 @@ export const LAYOUT = {
   Y_ENDPOINT: 400,
   Y_SERVER: 480,
   Y_CLOUD_BOTTOM: 560,
-  // Segundo piso para routers de tránsito y su subárbol (ver doc del módulo).
+  // Second tier for transit routers and their subtree (see module doc).
   Y_TRANSIT_ROUTER: 400,
   Y_TRANSIT_AP: 475,
   Y_TRANSIT_SWITCH: 530,
@@ -114,9 +111,9 @@ export const LAYOUT = {
   AP_X_SPACING: 110,
 } as const;
 
-/** Bandas Y según el tier (backbone vs tránsito). El cuerpo del algoritmo
- *  consulta `bandsFor(routerName)` para elegir la fila correcta de cada
- *  hijo en función del tier de su router padre. */
+/** Y bands according to tier (backbone vs transit). The algorithm queries
+ *  `bandsFor(routerName)` to pick the proper row for each child based on
+ *  the parent router tier. */
 interface YBands {
   readonly ap: number;
   readonly switch: number;
@@ -191,7 +188,7 @@ export function nextSlotForCategory(
 }
 
 // ---------------------------------------------------------------------------
-// gridLayoutCanvas — implementación completa abajo
+// gridLayoutCanvas — full implementation below
 // ---------------------------------------------------------------------------
 
 const ROUTERY = (cat?: DeviceCategory) =>
@@ -201,18 +198,18 @@ const SWITCHY = (cat?: DeviceCategory) =>
 const ENDPOINTY = (cat?: DeviceCategory) =>
   cat != null && ENDPOINT_CATEGORIES.has(cat);
 
-/** Mínimo ancho lógico (en unidades de PC_X_SPACING) que requiere un switch.
- *  Con N endpoints en una fila (PC_X_SPACING = 80px) hacen falta N unidades
- *  + 0.4 de margen para que el switch siguiente no pise el último endpoint.
- *  A partir de 7 endpoints partimos en dos filas (Y_ENDPOINT y +60), así que
- *  el ancho cae a ceil(N/2). */
+/** Minimum logical width (in PC_X_SPACING units) required by a switch.
+ *  With N endpoints in a row (PC_X_SPACING = 80px), N units are required
+ *  + 0.4 margin so the next switch doesn't step on the last endpoint.
+ *  With 7+ endpoints we split into two rows (Y_ENDPOINT and +60), so width
+ *  drops to ceil(N/2). */
 function switchWidthUnits(endpointCount: number): number {
   if (endpointCount <= 1) return 1.4;
   if (endpointCount <= 6) return endpointCount + 0.4;
   return Math.ceil(endpointCount / 2) + 0.4;
 }
 
-/** Mínimo ancho lógico que requiere un router según sus hijos. */
+/** Minimum logical width required by a router based on its children. */
 function routerWidthUnits(args: {
   switchWidths: number[];
   directEndpoints: number;
@@ -229,7 +226,7 @@ function routerWidthUnits(args: {
   return Math.max(2.0, sw, direct, top, bottom);
 }
 
-/** Distribuye N items simétricamente alrededor de cx con paso `spacing`. */
+/** Distribute N items symmetrically around cx with spacing `spacing`. */
 function spreadAround(cx: number, count: number, spacing: number): number[] {
   if (count === 0) return [];
   if (count === 1) return [cx];
@@ -249,7 +246,7 @@ function spreadAround(cx: number, count: number, spacing: number): number[] {
  * `moveDevice` calls.
  */
 export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: string; x: number; y: number }[] {
-  // ---------------- Adyacencia ----------------
+  // ---------------- Adjacency ----------------
   const neighbors = new Map<string, Set<string>>();
   for (const link of snapshot.links) {
     if (!neighbors.has(link.aDevice)) neighbors.set(link.aDevice, new Set());
@@ -265,29 +262,29 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
 
   const placements = new Map<string, { x: number; y: number }>();
 
-  // ---------------- Orden del backbone ----------------
-  // Preservamos el orden visual del usuario: ordenar por X actual, desempatar
-  // por nombre. Esto cubre los dos casos comunes —
-  //   (a) topología cocinada con coordenadas: el orden X ya es el correcto;
-  //   (b) topología sin colocar (X iguales): el desempate por nombre suele
-  //       coincidir con el orden del chain (R1-R2-R3-...).
-  // Una BFS sobre el grafo router-router desordenaría (b) cuando arranca
-  // desde un router del medio, así que la dejamos fuera.
+  // ---------------- Backbone ordering ----------------
+  // Preserve user's visual order: sort by current X, tie-break by name.
+  // This covers the two common cases:
+  //   (a) cooked topology with coordinates: X order is already correct;
+  //   (b) unplaced topology (equal X): name tie-break usually matches
+  //       the chain order (R1-R2-R3-...).
+  // A BFS over the router-router graph would disorder (b) if it starts
+  // at a middle router, so we omit BFS here.
   const routers = snapshot.devices.filter(d => ROUTERY(d.category));
   const routerSet = new Set(routers.map(r => r.name));
   const routerOrder = [...routers].sort((a, b) =>
     a.x !== b.x ? a.x - b.x : a.name.localeCompare(b.name));
 
-  // ---------------- Clasificación de hijos por router ----------------
-  // Cada dispositivo no-router se asigna al "router más cercano" (vecino router
-  // directo si existe; si no, vecino-de-vecino vía un switch). Los nodos que
-  // tocan a 2+ routers se marcan como "shared" y van entre medias.
+  // ---------------- Classify children per router ----------------
+  // Each non-router device is assigned to the "closest router" (direct router
+  // neighbor if present; otherwise neighbor-of-neighbor via switch). Nodes
+  // touching 2+ routers are marked as "shared" and placed in between.
   type RouterChildren = {
-    switches: DeviceObservation[];        // switches conectados directamente
+    switches: DeviceObservation[];        // directly connected switches
     aps: DeviceObservation[];             // access points
-    clouds: DeviceObservation[];          // clouds "propias" (sólo este router)
-    directEndpoints: DeviceObservation[]; // endpoints sin switch en medio
-    servers: DeviceObservation[];         // servers conectados al router (no via switch)
+    clouds: DeviceObservation[];          // dedicated clouds (this router only)
+    directEndpoints: DeviceObservation[]; // endpoints without intermediate switch
+    servers: DeviceObservation[];         // servers connected to router (not via switch)
   };
   const children = new Map<string, RouterChildren>();
   for (const r of routers) {
@@ -296,27 +293,26 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     });
   }
 
-  // shared[node] = lista de routers que lo comparten (cuando ≥ 2)
+  // shared[node] = list of routers sharing it (when >= 2)
   const sharedBetween = new Map<string, string[]>();
-  // switchEndpoints[switchName] = endpoints conectados al switch
+  // switchEndpoints[switchName] = endpoints connected to switch
   const switchEndpoints = new Map<string, DeviceObservation[]>();
-  // switchServers[switchName] = servers detrás del switch
+  // switchServers[switchName] = servers behind switch
   const switchServers = new Map<string, DeviceObservation[]>();
-  // switchOwner[switchName] = router al que pertenece (si pertenece a uno solo)
+  // switchOwner[switchName] = router it belongs to (if unique)
   const switchOwner = new Map<string, string>();
-  // assigned: devices ya asignados a la jerarquía de algún router
+  // assigned: devices already assigned to a router hierarchy
   const assigned = new Set<string>(routers.map(r => r.name));
-  // dangling[parent] = endpoints encadenados que cuelgan de otro endpoint
-  // ya asignado (caso típico: teléfono analógico colgando de un Home-VoIP-PT,
-  // o un PC enchufado al puerto pasante de un IP Phone). Se colocan en una
-  // sub-fila justo debajo del padre, no añaden ancho al subárbol del switch.
+  // dangling[parent] = chained endpoints attached to another endpoint
+  // already assigned (typical: analog phone hanging off Home-VoIP-PT,
+  // or PC plugged into IP Phone passthrough port). Placed in a sub-row
+  // directly under parent without adding width to the switch subtree.
   const danglingByParent = new Map<string, DeviceObservation[]>();
 
-  // 1ª pasada: switches (deciden su router padre). Iterativa porque los
-  // switches pueden estar en cascada por trunk (un access switch sólo se
-  // conecta al distribution switch, que es el que llega al router). Ronda
-  // 1 resuelve los conectados directamente al router; rondas siguientes
-  // propagan el dueño aguas abajo del trunk.
+  // 1st pass: switches (determine parent router). Iterative because switches
+  // can be cascaded via trunks (access switch connects only to distribution switch,
+  // which connects to router). Round 1 resolves direct router neighbors; subsequent
+  // rounds propagate ownership downstream along trunks.
   const allSwitches = snapshot.devices.filter(d => SWITCHY(d.category));
   const pendingSwitches = new Set(allSwitches.map(s => s.name));
   let switchProgress = true;
@@ -341,7 +337,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
         switchProgress = true;
         continue;
       }
-      // Sin router directo: ¿llega vía un switch ya resuelto?
+      // Without direct router: reachable via an already resolved switch?
       const adjResolved = adj
         .filter(n => SWITCHY(n.category) && switchOwner.has(n.name));
       if (adjResolved.length > 0) {
@@ -355,7 +351,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     }
   }
 
-  // 2ª pasada: endpoints/servers/clouds/aps.
+  // 2nd pass: endpoints/servers/clouds/aps.
   for (const d of snapshot.devices) {
     if (assigned.has(d.name)) continue;
     if (ROUTERY(d.category) || SWITCHY(d.category)) continue;
@@ -363,14 +359,14 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     const adjRouters = adj.filter(n => routerSet.has(n.name));
     const adjSwitches = adj.filter(n => SWITCHY(n.category) && switchOwner.has(n.name));
 
-    // Compartido entre 2+ routers (caso "Internet entre R2 y R3").
+    // Shared between 2+ routers (e.g. "Internet between R2 and R3").
     if (adjRouters.length >= 2) {
       sharedBetween.set(d.name, adjRouters.map(r => r.name));
       assigned.add(d.name);
       continue;
     }
 
-    // Detrás de un switch que ya tiene dueño.
+    // Behind a switch that already has an owner.
     if (adjSwitches.length > 0) {
       const sw = adjSwitches[0]!;
       if (d.category === "server") {
@@ -380,7 +376,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
         if (!switchEndpoints.has(sw.name)) switchEndpoints.set(sw.name, []);
         switchEndpoints.get(sw.name)!.push(d);
       } else if (d.category === "accesspoint") {
-        // AP detrás de un switch: lo adjuntamos al router del switch como AP.
+        // AP behind switch: attach to switch's router as AP.
         const ownerRouter = switchOwner.get(sw.name);
         if (ownerRouter) children.get(ownerRouter)!.aps.push(d);
       } else if (d.category === "cloud") {
@@ -391,7 +387,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
       continue;
     }
 
-    // Conectado directamente a un único router.
+    // Directly connected to a single router.
     if (adjRouters.length === 1) {
       const owner = adjRouters[0]!.name;
       const bucket = children.get(owner)!;
@@ -402,12 +398,12 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
       assigned.add(d.name);
       continue;
     }
-    // Si no, queda como huérfano.
+    // Otherwise remains as orphan.
   }
 
-  // 3ª pasada (iterativa): endpoints encadenados — cuelgan de otro endpoint
-  // que ya está asignado a un switch o router. Se quedan como "dangling" del
-  // padre y se colocan debajo en la sub-fila Y_ENDPOINT + 60 al final.
+  // 3rd pass (iterative): chained endpoints — attached to another endpoint
+  // already assigned to a switch or router. Left as "dangling" from the parent
+  // and placed in sub-row Y_ENDPOINT + 60 at the end.
   let danglingProgress = true;
   while (danglingProgress) {
     danglingProgress = false;
@@ -415,7 +411,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
       if (assigned.has(d.name)) continue;
       if (ROUTERY(d.category) || SWITCHY(d.category)) continue;
       const adj = neighborsOf(d.name);
-      // Buscamos un vecino que sea un endpoint ya asignado (no router/switch).
+      // Look for a neighbor that is an already assigned endpoint (not router/switch).
       const parent = adj.find(n =>
         assigned.has(n.name) && !ROUTERY(n.category) && !SWITCHY(n.category));
       if (!parent) continue;
@@ -426,43 +422,43 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     }
   }
 
-  // ---------------- Detección de routers de tránsito ----------------
-  // Un router se considera "tránsito" cuando su única función topológica es
-  // puentear OTROS routers que no se ven entre sí directamente, y su propio
-  // subárbol no contiene LAN de usuarios (PCs/teléfonos/APs/clouds), sólo a
-  // lo sumo un switch con servidores. Caso canónico: RInternet entre R2 y R3
-  // en una WAN con NAT/GRE; el router ISP entre dos sedes.
+  // ---------------- Transit router detection ----------------
+  // A router is considered "transit" when its sole topological purpose is to
+  // bridge OTHER routers that do not see each other directly, and its own
+  // subtree contains no user LAN (PCs/phones/APs/clouds), only at most
+  // a switch with servers. Canonical case: RInternet between R2 and R3
+  // in a WAN with NAT/GRE; ISP router between two branches.
   //
-  // Visualmente baja a un segundo piso (Y_TRANSIT_*) para que no rompa la
-  // fila ordenada de routers de oficina. Se descarta para topologías malladas
-  // (sus vecinos están conectados entre sí, condición 2 falla) y para
-  // topologías con PCs/APs colgando del propio router de tránsito (la "LAN
-  // del transito" lo descalifica — sería una sede más).
+  // Visually it moves down to a second tier (Y_TRANSIT_*) so it doesn't break
+  // the orderly row of office routers. Mesh topologies are excluded
+  // (neighbors are interconnected, condition 2 fails) and topologies with
+  // PCs/APs hanging off the transit router itself are disqualified (the transit LAN
+  // makes it a regular site).
   const transitRouters = new Set<string>();
   const isTransit = (r: DeviceObservation): boolean => {
     const adj = neighbors.get(r.name);
     if (!adj) return false;
     const adjRouters = [...adj].filter(n => routerSet.has(n));
     if (adjRouters.length < 2) return false;
-    // Ningún par de vecinos directos del router se ve entre sí. Si hay aunque
-    // sea un par directamente cableado, es una malla, no un puente.
+    // No pair of direct router neighbors can see each other. If even one pair
+    // is directly cabled, it is a mesh, not a bridge.
     for (let i = 0; i < adjRouters.length; i++) {
       for (let j = i + 1; j < adjRouters.length; j++) {
         if (neighbors.get(adjRouters[i]!)?.has(adjRouters[j]!)) return false;
       }
     }
     const c = children.get(r.name)!;
-    // No tiene LAN de usuarios (PCs, teléfonos, etc.) directos.
+    // No direct user LAN (PCs, phones, etc.).
     if (c.directEndpoints.length > 0) return false;
     if (c.aps.length > 0) return false;
     if (c.clouds.length > 0) return false;
-    // Tampoco la tiene a través de un switch propio.
+    // Nor via dedicated switch.
     for (const sw of c.switches) {
       const eps = switchEndpoints.get(sw.name) ?? [];
       if (eps.length > 0) return false;
     }
-    // Y tiene al menos un hijo (si no, es un relay puro y vive bien en el
-    // backbone alineado con sus vecinos sin necesidad de bajar).
+    // And has at least one child (otherwise it is a pure relay and lives
+    // fine in backbone aligned with its neighbors without shifting down).
     const total = c.switches.length + c.servers.length + c.directEndpoints.length
       + c.aps.length + c.clouds.length;
     if (total === 0) return false;
@@ -474,7 +470,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
   const bandsFor = (routerName: string): YBands =>
     transitRouters.has(routerName) ? TRANSIT_BANDS : BACKBONE_BANDS;
 
-  // ---------------- Anchos de subárbol ----------------
+  // ---------------- Subtree widths ----------------
   const switchWidthFor = (sw: DeviceObservation): number => {
     const eps = switchEndpoints.get(sw.name)?.length ?? 0;
     const srv = switchServers.get(sw.name)?.length ?? 0;
@@ -492,10 +488,10 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     }));
   }
 
-  // ---------------- Posicionar routers ----------------
-  // El centro de cada router backbone cae a `cursor + width*PC_X_SPACING/2`.
-  // Los routers de tránsito NO consumen slot horizontal; se colocan en una
-  // segunda pasada al promedio de los centros de sus vecinos backbone.
+  // ---------------- Position routers ----------------
+  // The center of each backbone router falls at `cursor + width*PC_X_SPACING/2`.
+  // Transit routers do NOT consume horizontal slot; they are placed in a
+  // second pass at the average center of their backbone neighbors.
   const routerCenter = new Map<string, number>();
   let cursor = LAYOUT.X_START;
   for (const r of routerOrder) {
@@ -506,9 +502,9 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     routerCenter.set(r.name, cx);
     cursor = cursor + w + LAYOUT.ROUTER_GAP;
   }
-  // Tránsitos: x = promedio de centros backbone vecinos, y = Y_TRANSIT_ROUTER.
-  // Si dos tránsitos comparten el mismo par backbone (raro pero posible: dos
-  // ISPs paralelos), se desplazan +/- CLOUD_X_SPACING para no pisarse.
+  // Transits: x = average center of backbone neighbors, y = Y_TRANSIT_ROUTER.
+  // If two transits share the same backbone pair (rare but possible: two
+  // parallel ISPs), they are shifted +/- CLOUD_X_SPACING so they do not collide.
   const transitOrder = routerOrder.filter(r => transitRouters.has(r.name));
   const transitGroups = new Map<string, DeviceObservation[]>();
   for (const r of transitOrder) {
@@ -528,8 +524,8 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     if (adjCenters.length > 0) {
       cx = adjCenters.reduce((a, b) => a + b, 0) / adjCenters.length;
     } else {
-      // Caso degenerado: tránsito sin vecino backbone resoluble. Cae a la
-      // derecha del cursor — sigue ordenado y sin colisiones.
+      // Degenerate case: transit without resolvable backbone neighbor.
+      // Placed to the right of cursor — remains ordered without collisions.
       cx = cursor + LAYOUT.X_SPACING;
       cursor += LAYOUT.X_SPACING;
     }
@@ -541,9 +537,9 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     });
   }
 
-  // ---------------- Posicionar nodos compartidos (entre routers) ----------------
-  // Centrados en el promedio de centros de los routers que los comparten.
-  // Y depende de la categoría (cloud → CLOUD_BOTTOM, server → SERVER, switch → SWITCH).
+  // ---------------- Position shared nodes (between routers) ----------------
+  // Centered at the average center of the routers sharing them.
+  // Y depends on category (cloud → CLOUD_BOTTOM, server → SERVER, switch → SWITCH).
   const sharedY = (cat?: DeviceCategory): number => {
     if (cat === "cloud") return LAYOUT.Y_CLOUD_BOTTOM;
     if (cat === "server") return LAYOUT.Y_SERVER;
@@ -552,7 +548,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     if (ENDPOINTY(cat)) return LAYOUT.Y_ENDPOINT;
     return LAYOUT.Y_CLOUD_BOTTOM;
   };
-  // Agrupar shared por par-de-routers para evitar pisado horizontal.
+  // Group shared by router-pair to avoid horizontal overlapping.
   const sharedGroups = new Map<string, string[]>(); // key = "r1|r2" sorted
   for (const [node, rs] of sharedBetween) {
     const key = [...rs].sort().join("|");
@@ -564,7 +560,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     const cxs = rs.map(n => routerCenter.get(n)).filter((v): v is number => v != null);
     if (cxs.length === 0) continue;
     const cx = cxs.reduce((a, b) => a + b, 0) / cxs.length;
-    // Si hay varios nodos compartidos por el mismo par, repartir simétricamente.
+    // If several nodes are shared by the same pair, spread symmetrically.
     nodes.sort((a, b) => a.localeCompare(b));
     nodes.forEach((n, i) => {
       const dev = byName.get(n);
@@ -574,22 +570,22 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     });
   }
 
-  // ---------------- Posicionar hijos por router ----------------
-  // Cada router consulta `bandsFor(name)` — backbone o tránsito — para que
-  // sus hijos hereden la fila Y correspondiente al tier del padre.
+  // ---------------- Position children per router ----------------
+  // Each router queries `bandsFor(name)` — backbone or transit — so its
+  // children inherit the corresponding Y row for the parent's tier.
   for (const r of routerOrder) {
     const c = children.get(r.name)!;
     const rcx = routerCenter.get(r.name)!;
     const bands = bandsFor(r.name);
 
-    // ---- APs sobre el router ----
+    // ---- APs above router ----
     {
       const aps = [...c.aps].sort((a, b) => a.name.localeCompare(b.name));
       const xs = spreadAround(rcx, aps.length, LAYOUT.AP_X_SPACING);
       aps.forEach((d, i) => placements.set(d.name, { x: xs[i]!, y: bands.ap }));
     }
 
-    // ---- Clouds: mitad arriba, mitad abajo ----
+    // ---- Clouds: half above, half below ----
     {
       const cls = [...c.clouds].sort((a, b) => a.name.localeCompare(b.name));
       const halfTop = Math.ceil(cls.length / 2);
@@ -601,7 +597,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
       bottom.forEach((d, i) => placements.set(d.name, { x: botXs[i]!, y: bands.cloudBottom }));
     }
 
-    // ---- Switches debajo del router, repartidos por sus propios anchos ----
+    // ---- Switches below router, distributed by their widths ----
     const switchCenter = new Map<string, number>();
     {
       const sws = [...c.switches].sort((a, b) => a.name.localeCompare(b.name));
@@ -620,12 +616,12 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
       }
     }
 
-    // ---- Endpoints de cada switch, centrados bajo el switch ----
+    // ---- Endpoints for each switch, centered under switch ----
     for (const sw of c.switches) {
       const eps = [...(switchEndpoints.get(sw.name) ?? [])]
         .sort((a, b) => a.name.localeCompare(b.name));
       const cx = switchCenter.get(sw.name)!;
-      // Si hay > 6 endpoints, partir en dos filas (segunda fila + 60px).
+      // If > 6 endpoints, split into two rows (second row + 60px).
       if (eps.length <= 6) {
         const xs = spreadAround(cx, eps.length, LAYOUT.PC_X_SPACING);
         eps.forEach((d, i) => placements.set(d.name, { x: xs[i]!, y: bands.endpoint }));
@@ -638,21 +634,21 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
         row1.forEach((d, i) => placements.set(d.name, { x: xs1[i]!, y: bands.endpoint }));
         row2.forEach((d, i) => placements.set(d.name, { x: xs2[i]!, y: bands.endpoint + 60 }));
       }
-      // Servers detrás del switch: fila bands.server, centrados.
+      // Servers behind switch: bands.server row, centered.
       const srv = [...(switchServers.get(sw.name) ?? [])]
         .sort((a, b) => a.name.localeCompare(b.name));
       const sxs = spreadAround(cx, srv.length, LAYOUT.SERVER_X_SPACING);
       srv.forEach((d, i) => placements.set(d.name, { x: sxs[i]!, y: bands.server }));
     }
 
-    // ---- Endpoints directos al router (sin switch en medio) ----
+    // ---- Endpoints directly connected to router (without intermediate switch) ----
     {
       const ep = [...c.directEndpoints].sort((a, b) => a.name.localeCompare(b.name));
       const xs = spreadAround(rcx, ep.length, LAYOUT.PC_X_SPACING);
       ep.forEach((d, i) => placements.set(d.name, { x: xs[i]!, y: bands.endpoint }));
     }
 
-    // ---- Servers directos al router ----
+    // ---- Servers directly connected to router ----
     {
       const sv = [...c.servers].sort((a, b) => a.name.localeCompare(b.name));
       const xs = spreadAround(rcx, sv.length, LAYOUT.SERVER_X_SPACING);
@@ -660,11 +656,10 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     }
   }
 
-  // ---------------- Endpoints encadenados (dangling) ----------------
-  // Recorrido iterativo: cada dangling se coloca debajo de su padre. Si el
-  // padre es a su vez un dangling, primero hay que ubicarlo a él. La lista
-  // queue garantiza que el padre siempre se haya colocado antes que el hijo
-  // (porque sólo entran al ciclo cuando su padre está en `placements`).
+  // ---------------- Chained endpoints (dangling) ----------------
+  // Iterative traversal: each dangling is placed under its parent. If the
+  // parent is itself a dangling, the parent must be placed first.
+  // The loop ensures the parent is in `placements` before the child is processed.
   {
     const pending = new Map(danglingByParent);
     let prog = true;
@@ -672,12 +667,12 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
       prog = false;
       for (const [parentName, kids] of [...pending]) {
         const parentSlot = placements.get(parentName);
-        if (!parentSlot) continue; // padre todavía no ubicado, esperar otra ronda
+        if (!parentSlot) continue; // parent not placed yet, wait for next round
         const sorted = [...kids].sort((a, b) => a.name.localeCompare(b.name));
         const xs = spreadAround(parentSlot.x, sorted.length, LAYOUT.PC_X_SPACING * 0.9);
         sorted.forEach((d, i) => {
-          // Justo debajo del padre. Si el padre ya está en la sub-fila +60,
-          // esto cae en +120 (un análogo conectado a un análogo, raro pero OK).
+          // Directly under parent. If parent is already in the +60 sub-row,
+          // this falls at +120 (an analog phone connected to an analog phone, rare but OK).
           const childY = parentSlot.y === LAYOUT.Y_ENDPOINT
             ? LAYOUT.Y_ENDPOINT + 60
             : parentSlot.y + 60;
@@ -689,15 +684,15 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     }
   }
 
-  // ---------------- Huérfanos (sin ruta a router) ----------------
-  // Mantienen banda Y por categoría, columna libre a la derecha del último
-  // router. Ordenados por nombre para idempotencia.
+  // ---------------- Orphans (no path to router) ----------------
+  // Maintain category Y band, free column to the right of the last router.
+  // Sorted by name for idempotence.
   const orphans = snapshot.devices
     .filter(d => !placements.has(d.name))
     .sort((a, b) => a.name.localeCompare(b.name));
   if (orphans.length > 0) {
-    const baseX = cursor; // cursor quedó tras el último router
-    const colCounts = new Map<number, number>(); // y → #col actual
+    const baseX = cursor; // cursor is past the last router
+    const colCounts = new Map<number, number>(); // y → current #col
     for (const d of orphans) {
       const y = d.category ? categoryRow(d.category) : LAYOUT.Y_ENDPOINT;
       const col = colCounts.get(y) ?? 0;
@@ -709,7 +704,7 @@ export function gridLayoutCanvas(snapshot: CanvasSnapshot): readonly { name: str
     }
   }
 
-  // ---------------- Construir lista de moves ----------------
+  // ---------------- Build list of moves ----------------
   const moves: { name: string; x: number; y: number }[] = [];
   for (const d of snapshot.devices) {
     const slot = placements.get(d.name);

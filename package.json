@@ -59,7 +59,7 @@
     "extension/dist/*.pts",
     "server.json",
     "README.md",
-    "README.en.md",
+    "NOTICE.md",
     "LICENSE"
   ],
   "engines": {
@@ -68,10 +68,12 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --hot src/index.ts",
-    "build": "bun build src/index.ts --compile --outfile dist/packet-tracer-mcp",
+    "build": "bun build src/index.ts --compile --outfile dist/stu-packet-tracer-mcp",
     "typecheck": "tsc --noEmit",
+    "check:english": "bun run scripts/check-english.ts",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "ci": "bun run typecheck && bun run check:english && bun test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

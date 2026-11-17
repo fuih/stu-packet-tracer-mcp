@@ -36,7 +36,7 @@ export interface SlotInfo {
 export const ROUTER_SLOT_CATALOG: Readonly<Record<string, SlotInfo>> = {
   // ISR G1 (FastEthernet generation, HWIC slots).
   // 1841: 2 HWIC slots, no NM. PT 9 also accepts NIM-2T in HWIC bays
-  // "por compatibilidad" (probe-module-bays 2026-05-01) — real Cisco
+  // "for compatibility" (probe-module-bays 2026-05-01) — real Cisco
   // would reject because NIM modules need a 4xxx chassis, but PT is
   // permissive and we mirror its policy.
   "1841": { bays: ["0/0", "0/1"], families: ["HWIC", "WIC", "NIM"] },

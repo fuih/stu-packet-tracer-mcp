@@ -33,7 +33,7 @@ export async function fetchDeviceModel(bridge: Bridge, deviceName: string): Prom
     `try{return String(d.getModel());}catch(e){return"ERR:"+e;}})()`;
   const reply = await bridge.sendAndWait(js, {
     timeoutMs: 3_000,
-    label: `Consultando modelo de ${deviceName}`,
+    label: `Querying model for ${deviceName}`,
   });
   if (!reply || reply === "?" || reply.startsWith("ERR")) return null;
   return reply;

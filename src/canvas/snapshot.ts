@@ -30,27 +30,27 @@ const LW = "ipc.appWindow().getActiveWorkspace().getLogicalWorkspace()";
 const NET = "ipc.network()";
 
 /**
- * Cómo se construyen los enlaces en el snapshot:
+ * How links are constructed in the snapshot:
  *
- * El JS sólo emite filas DEV / PORT (con `linked=1|0`). NO intenta resolver
- * los endpoints del Link desde la API JS de PT 9 — está roto: el objeto
- * Link es opaco (`getDeviceA/B`, `getPortA/B`, `getEndpointA/B`,
- * `getOtherEnd`, `getId`, `toString` lanzan TypeError o devuelven null) y
- * `port.getConnectedPort()` ni siquiera existe. Verificado empíricamente
- * 2026-05-01 con `scripts/probe-link-api.ts`.
+ * JS only emits DEV / PORT rows (with `linked=1|0`). It does NOT attempt
+ * to resolve Link endpoints from the PT 9 JS API — it is broken: the Link
+ * object is opaque (`getDeviceA/B`, `getPortA/B`, `getEndpointA/B`,
+ * `getOtherEnd`, `getId`, `toString` throw TypeError or return null) and
+ * `port.getConnectedPort()` does not even exist. Empirically verified
+ * 2026-05-01 via `scripts/probe-link-api.ts`.
  *
- * En su lugar, las parejas de cable las aporta `linkRegistry` (estado
- * mantenido en proceso por `pt_create_link` / `pt_delete_link` /
- * `pt_delete_device`). `captureSnapshot` mergea ambas fuentes: PT da
- * dispositivos+puertos+coordenadas, el registry da los enlaces.
+ * Instead, cable pairs are provided by `linkRegistry` (in-process state
+ * maintained by `pt_create_link` / `pt_delete_link` / `pt_delete_device`).
+ * `captureSnapshot` merges both sources: PT provides devices + ports +
+ * coordinates, while the registry provides the links.
  *
- * Limitación conocida: si el usuario carga un .pkt existente con
- * `pt_load_project` el registry está vacío y los cables del fichero no
- * aparecen como `links`. Documentado en `canvas/link-registry.ts`.
+ * Known limitation: if the user loads an existing .pkt file via
+ * `pt_load_project`, the registry is empty and existing cables do not
+ * appear as `links`. Documented in `canvas/link-registry.ts`.
  */
 export function snapshotCanvasJs(): string {
   return withLabel(
-    "Snapshot del canvas (dispositivos + enlaces + posiciones)",
+    "Canvas snapshot (devices + links + positions)",
     `(function(){` +
       `var net=${NET};` +
       `void ${LW};` + // touch the logical workspace so PT activates it

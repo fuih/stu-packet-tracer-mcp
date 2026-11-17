@@ -96,12 +96,12 @@ export const registerCreateLinkTool: ToolModule = ({ bridge, server }) => {
       const err = checkPtReply(result, { device: device_a });
       if (err) return err;
       if (result === "true" || result === "OK") {
-        // PT 9 expone un objeto Link opaco — todos sus accesores
+        // PT 9 exposes an opaque Link object — all its accessors
         // (getDeviceA/B, getPortA/B, getEndpointA/B, getOtherEnd, getId,
-        // toString) fallan con TypeError o devuelven null. Sin esto el
-        // snapshot no puede reconstruir las parejas de cable y derivados
-        // (auto_layout, explainer) tratan a todo como huérfano. Ver
-        // src/canvas/link-registry.ts para el contexto completo.
+        // toString) fail with TypeError or return null. Without this,
+        // the snapshot cannot reconstruct cable pairs and downstream tools
+        // (auto_layout, explainer) treat everything as orphans. See
+        // src/canvas/link-registry.ts for the full context.
         linkRegistry.register(device_a, port_a, device_b, port_b);
         let msg = `Linked ${device_a}:${port_a} <-> ${device_b}:${port_b} (${cable}).`;
         if (cable === "serial") {
@@ -154,7 +154,7 @@ async function fetchDeviceClasses(
     `if(!a||!b)return "?|?";return a.getClassName()+"|"+b.getClassName();})()`;
   const reply = await bridge.sendAndWait(js, {
     timeoutMs: 3_000,
-    label: `Verificando clases de ${a} y ${b}`,
+    label: `Checking classes for ${a} and ${b}`,
   });
   if (!reply || reply.startsWith("ERR")) return null;
   const [classA, classB] = reply.split("|");

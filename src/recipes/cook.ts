@@ -153,9 +153,9 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
     if (reply.startsWith("ERR:") || reply.startsWith("ERROR:")) {
       throw new Error(`createLink for ${tag} failed: ${reply}`);
     }
-    // Mantener el registry coherente — la API de Link de PT 9 es opaca
-    // y captureSnapshot depende del registry para conocer las parejas.
-    // Ver canvas/link-registry.ts.
+    // Keep registry coherent — PT 9 Link API is opaque
+    // and captureSnapshot depends on the registry to know link pairs.
+    // See canvas/link-registry.ts.
     linkRegistry.register(lnk.aDevice, lnk.aPort, lnk.bDevice, lnk.bPort);
     placedLinks.push(tag);
     existingLinks.add(key);
@@ -266,17 +266,17 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
 }
 
 /**
- * Tras todas las fases (addressing, routing, switching, services, extraCli)
- * persistimos `running-config` → `startup-config` en cada router/switch del
- * blueprint. Imprescindible: PT puede reiniciar el modelo (p.ej. al
- * instalar un NIM con `setPower(false)`, o entre sesiones aunque el `.pkt`
- * sí se guarde) y al rearrancar solo se carga la startup. Sin este paso
- * se pierden interfaces, OSPF, NAT, ACLs, etc., reproduciendo las
- * incidencias documentadas en MCP_PACKET_TRACER.md (lecciones 2 y 3).
+ * After all phases (addressing, routing, switching, services, extraCli),
+ * persist `running-config` → `startup-config` on each router/switch in the
+ * blueprint. Essential: PT can reset the model (e.g. when installing a NIM
+ * with `setPower(false)`, or across sessions even when the `.pkt` is saved),
+ * and rebooting only reloads startup. Without this step, interfaces, OSPF,
+ * NAT, ACLs, etc. are lost, reproducing the issues documented in
+ * AGENTS.md / MCP_PACKET_TRACER.md.
  *
- * Switching ya hace `write memory` granular por switch en `apply.ts`;
- * aquí completamos el resto (routers principalmente) y damos un segundo
- * paso defensivo a los switches.
+ * Switching already performs granular `write memory` per switch in `apply.ts`;
+ * here we complete the rest (mainly routers) and give a second defensive
+ * pass to switches.
  */
 async function persistAllConfigs(bridge: Bridge, blueprint: Blueprint): Promise<void> {
   for (const dev of blueprint.devices) {
@@ -369,9 +369,9 @@ async function waitForBlueprintLinks(
 }
 
 function isLinkPresent(status: string): boolean {
-  // Formato: "a:link=1|port=...|proto=...;b:...". El cook solo necesita
-  // que el cableado esté registrado en ambos extremos; el up/up real
-  // llega después del `no shutdown` que emite addressing.
+  // Format: "a:link=1|port=...|proto=...;b:...". Cook only needs
+  // wiring to be registered at both ends; real up/up
+  // arrives after the `no shutdown` emitted by addressing.
   const sides = status.split(";");
   if (sides.length !== 2) return false;
   for (const side of sides) {

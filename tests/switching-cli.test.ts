@@ -91,11 +91,11 @@ describe("trunkPortCli", () => {
   });
 
   test("3650 multilayer emits the full 3-line trunk in running-config order (regression-guard for F2-MULTILAYER-VLAN-NATIVE)", () => {
-    // Smoke 2026-05-01_114559 PASS confirmó que el path CLI puro renderiza
-    // las 3 líneas (`mode trunk` + `allowed vlan` + `native vlan`) en el
-    // running-config del 3650, mientras que la API nativa
-    // (`addTrunkVlans` + `setNativeVlanId`) omitía la línea allowed.
-    // Este test fija el contrato CLI sin requerir PT abierto.
+    // Smoke 2026-05-01_114559 PASS confirmed that the pure CLI path renders
+    // all 3 lines (`mode trunk` + `allowed vlan` + `native vlan`) in the
+    // 3650 running-config, whereas the native API
+    // (`addTrunkVlans` + `setNativeVlanId`) omitted the allowed line.
+    // This test pins the CLI contract without requiring PT to be open.
     const cli = trunkPortCli({
       switch: "SW",
       switchModel: "3650-24PS",

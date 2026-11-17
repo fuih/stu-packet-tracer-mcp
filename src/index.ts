@@ -20,8 +20,8 @@ async function main(): Promise<void> {
   // cryptic ReferenceError deep inside the bridge.
   if (typeof Bun === "undefined") {
     process.stderr.write(
-      "[packet-tracer-mcp] error: este servidor requiere Bun (>=1.2). " +
-      "Instálalo desde https://bun.sh y ejecuta: bun run src/index.ts\n",
+      "[stu-pt-mcp] error: this server requires Bun (>=1.2). " +
+      "Install it from https://bun.sh and run: bun run src/index.ts\n",
     );
     process.exit(1);
   }
@@ -41,7 +41,7 @@ async function main(): Promise<void> {
   if (useStdio) {
     // Stdio: minimal output. The MCP client spawning us as a subprocess
     // logs stderr to a debug pane — keep it quiet unless something's wrong.
-    log(`[packet-tracer-mcp] stdio listo · bridge en :${cfg.bridgePort}`);
+    log(`[stu-pt-mcp] stdio ready · bridge on :${cfg.bridgePort}`);
   } else {
     // HTTP: someone is running this interactively. Print a friendly banner.
     printBanner(cfg.mcpHost, cfg.mcpPort, cfg.bridgePort);
@@ -56,14 +56,14 @@ async function main(): Promise<void> {
   // silently — log it loudly. We keep the process alive: a single failed tool
   // call shouldn't take down the whole server.
   process.on("unhandledRejection", (reason) => {
-    log(`[packet-tracer-mcp] promesa no capturada: ${formatError(reason)}`);
+    log(`[stu-pt-mcp] unhandled rejection: ${formatError(reason)}`);
   });
   process.on("uncaughtException", (err) => {
-    log(`[packet-tracer-mcp] excepción no capturada: ${formatError(err)}`);
+    log(`[stu-pt-mcp] uncaught exception: ${formatError(err)}`);
   });
 
   const shutdown = async (signal: string) => {
-    log(`\n[packet-tracer-mcp] ${signal} recibido, cerrando…`);
+    log(`\n[stu-pt-mcp] ${signal} received, shutting down…`);
     clearInterval(bridgeWatcher);
     await running.stop();
     process.exit(0);
@@ -74,8 +74,8 @@ async function main(): Promise<void> {
 
 /**
  * Polls the bridge status every 2s and logs only the edges:
- *   disconnected → connected  ("Extensión PT conectada")
- *   connected    → disconnected ("Extensión PT desconectada")
+ *   disconnected → connected  ("PT extension connected")
+ *   connected    → disconnected ("PT extension disconnected")
  * Polling itself stays silent — the PT webview hits /next every 500ms and
  * we don't want to spam stderr with one line per poll.
  */
@@ -84,9 +84,9 @@ function watchBridgeConnection(running: RunningServer, log: (msg: string) => voi
   const timer = setInterval(() => {
     const connected = running.bridge.status().connected;
     if (connected && !wasConnected) {
-      log("[packet-tracer-mcp] Extensión PT conectada");
+      log("[stu-pt-mcp] PT extension connected");
     } else if (!connected && wasConnected) {
-      log("[packet-tracer-mcp] Extensión PT desconectada");
+      log("[stu-pt-mcp] PT extension disconnected");
     }
     wasConnected = connected;
   }, 2_000);
@@ -96,24 +96,24 @@ function watchBridgeConnection(running: RunningServer, log: (msg: string) => voi
 
 function printHelp(): void {
   const text = [
-    `packet-tracer-mcp v${pkg.version}`,
-    "Servidor MCP para Cisco Packet Tracer 9.",
+    `stu-packet-tracer-mcp v${pkg.version}`,
+    "Student-focused MCP server for Cisco Packet Tracer 9.",
     "",
-    "Uso:",
-    "  bun run src/index.ts            Arranca en modo HTTP (Streamable HTTP)",
-    "  bun run src/index.ts --stdio    Arranca en modo stdio (Claude Desktop, etc.)",
+    "Usage:",
+    "  bun run src/index.ts            Start in HTTP mode (Streamable HTTP)",
+    "  bun run src/index.ts --stdio    Start in stdio mode (Claude Desktop, etc.)",
     "",
-    "Opciones:",
-    "  --stdio          Habla JSON-RPC por stdin/stdout en lugar de HTTP",
-    "  -v, --version    Imprime la versión y sale",
-    "  -h, --help       Muestra esta ayuda",
+    "Options:",
+    "  --stdio          Speak JSON-RPC over stdin/stdout instead of HTTP",
+    "  -v, --version    Print version and exit",
+    "  -h, --help       Show this help message",
     "",
-    "Variables de entorno:",
-    "  MCP_HOST         Host del transporte HTTP (default: 127.0.0.1)",
-    "  MCP_PORT         Puerto MCP HTTP (default: 39001)",
-    "  BRIDGE_PORT      Puerto del bridge interno hacia PT (default: 54321)",
+    "Environment variables:",
+    "  MCP_HOST         HTTP transport host (default: 127.0.0.1)",
+    "  MCP_PORT         MCP HTTP port (default: 39001)",
+    "  BRIDGE_PORT      Internal bridge port to PT (default: 54321)",
     "",
-    `Documentación: ${pkg.repository?.url?.replace(/^git\+/, "").replace(/\.git$/, "") ?? ""}`,
+    `Documentation: ${pkg.repository?.url?.replace(/^git\+/, "").replace(/\.git$/, "") ?? ""}`,
     "",
   ].join("\n");
   process.stdout.write(text);
@@ -130,24 +130,24 @@ function printBanner(host: string, port: number, bridgePort: number): void {
   const lines = [
     "",
     "  ╔══════════════════════════════════════════════════════════════════╗",
-    `  ║  packet-tracer-mcp  v${pkg.version.padEnd(44)}║`,
-    "  ║  Servidor MCP para Cisco Packet Tracer 9                         ║",
+    `  ║  stu-packet-tracer-mcp  v${pkg.version.padEnd(40)}║`,
+    "  ║  Student MCP server for Cisco Packet Tracer 9                    ║",
     "  ╠══════════════════════════════════════════════════════════════════╣",
-    `  ║  Autor      ${author.padEnd(53)}║`,
+    `  ║  Author     ${author.padEnd(53)}║`,
     `  ║  GitHub     ${repo.padEnd(53)}║`,
-    `  ║  Licencia   ${pkg.license.padEnd(53)}║`,
+    `  ║  License    ${pkg.license.padEnd(53)}║`,
     "  ╚══════════════════════════════════════════════════════════════════╝",
     "",
     `  MCP      http://${host}:${port}/mcp`,
-    `  Bridge   http://127.0.0.1:${bridgePort}   (esperando polling de la extensión de PT)`,
+    `  Bridge   http://127.0.0.1:${bridgePort}   (waiting for PT extension polling)`,
     "",
-    "  Pulsa Ctrl+C para parar.",
+    "  Press Ctrl+C to stop.",
     "",
   ];
   for (const line of lines) process.stderr.write(line + "\n");
 }
 
 main().catch((err) => {
-  process.stderr.write(`[packet-tracer-mcp] error fatal: ${formatError(err)}\n`);
+  process.stderr.write(`[stu-pt-mcp] fatal error: ${formatError(err)}\n`);
   process.exit(1);
 });

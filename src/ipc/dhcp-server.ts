@@ -9,29 +9,28 @@ import { withLabel } from "./label.js";
  * API IPC verified against PT 9.0.0.0810 via `scripts/probe-dhcp.ts`:
  *   sp methods: isEnable, setEnable, addPool, addNewPool, getPool, removePool,
  *               getPoolCount, getPoolAt, addExcludedAddress, removeExcludedAddress
- *   pool methods (24 reales via Object.getPrototypeOf reflect; NO setTftpAddress):
+ *   pool methods (24 real via Object.getPrototypeOf reflect; NO setTftpAddress):
  *               setNetworkAddress, setNetworkMask, setDefaultRouter,
  *               setStartIp, setEndIp, setDnsServerIp, setMaxUsers,
  *               setNextAvailableIpAddress
  *               + getters incl. getNetworkAddress, getTftpAddress, getWlcAddress
  *
- *   Trampa: `setNetworkMask` se llama así pero en realidad fija network+mask
- *   juntos. Firma real `setNetworkMask(network, mask)` (dos IPs en string), no
- *   `setNetworkMask(mask)`. Pasar 1 solo argumento devuelve "Invalid arguments".
- *   Esto está en docs/pt-api/classes/DhcpPool.md como `setNetworkMask(ip, ip)`
- *   pero el manifest JSON tiene la firma incorrecta. Verificado en runtime:
- *   `setNetworkMask("172.16.50.0","255.255.255.0")` -> getSubnetMask devuelve
- *   "255.255.255.0" y getNetworkAddress "172.16.50.0".
+ *   Gotcha: `setNetworkMask` is named that way but actually sets network+mask
+ *   together. Real signature `setNetworkMask(network, mask)` (two IP strings), not
+ *   `setNetworkMask(mask)`. Passing 1 argument returns "Invalid arguments".
+ *   This is in docs/pt-api/classes/DhcpPool.md as `setNetworkMask(ip, ip)`
+ *   but the JSON manifest has the wrong signature. Verified at runtime:
+ *   `setNetworkMask("172.16.50.0","255.255.255.0")` -> getSubnetMask returns
+ *   "255.255.255.0" and getNetworkAddress "172.16.50.0".
  *
- * Limites confirmados (no parcheables desde JS):
- *   - getTftpAddress() existe pero NO hay setter — option-150 en Server-PT
- *     es read-only desde la API IPC. Para entregar TFTP por DHCP usa el
- *     router como DHCP server (`pt_apply_services` -> CLI `option 150 ip ...`).
+ * Confirmed limitations (cannot be patched from JS):
+ *   - getTftpAddress() exists but there is NO setter — option-150 on Server-PT
+ *     is read-only from the IPC API. To deliver TFTP via DHCP, use the
+ *     router as the DHCP server (`pt_apply_services` -> CLI `option 150 ip ...`).
  *   - addNewPool(name, network, mask, gw, dns, maxUsers, startIp, endIp)
- *     devuelve "Invalid arguments" en PT 9 — la firma documentada online no
- *     funciona en runtime, hay que ir slot a slot via setters.
- *   - getDomainName existe pero no setter -> domainName tampoco se puede
- *     setear desde JS (igual que TFTP).
+ *     returns "Invalid arguments" on PT 9 — documented online signature fails
+ *     at runtime, so we must configure slot by slot via setters.
+ *   - getDomainName exists but no setter -> domainName cannot be set from JS either (like TFTP).
  */
 
 export interface DhcpExclusion {
@@ -63,7 +62,7 @@ const DEFAULT_PORT = "FastEthernet0";
 
 function poolApplyJs(spec: DhcpPoolSpec): string {
   const setters: string[] = [];
-  // setNetworkMask en PT 9 es (network, mask) — fija ambos en una sola llamada.
+  // setNetworkMask in PT 9 is (network, mask) — sets both in a single call.
   setters.push(
     `try{p.setNetworkMask(${jsStr(spec.network)},${jsStr(spec.subnetMask)});}` +
     `catch(e){lines.push("set_netmask_err|"+e);}`,
@@ -74,9 +73,9 @@ function poolApplyJs(spec: DhcpPoolSpec): string {
   if (spec.dnsServer !== undefined) {
     setters.push(`try{p.setDnsServerIp(${jsStr(spec.dnsServer)});}catch(e){lines.push("set_dns_err|"+e);}`);
   }
-  // PT acopla maxUsers <-> endIp: setMaxUsers(N) recalcula end = start+N-1
-  // y setEndIp(ip) recalcula maxUsers = end-start+1. Aplicamos maxUsers PRIMERO
-  // y endIp DESPUÉS para que el endIp explícito gane si el usuario pasa ambos.
+  // PT couples maxUsers <-> endIp: setMaxUsers(N) recalculates end = start+N-1
+  // and setEndIp(ip) recalculates maxUsers = end-start+1. We apply maxUsers FIRST
+  // and endIp AFTERwards so an explicit endIp wins if the user passes both.
   if (spec.startIp !== undefined) {
     setters.push(`try{p.setStartIp(${jsStr(spec.startIp)});}catch(e){lines.push("set_start_err|"+e);}`);
   }
@@ -135,7 +134,7 @@ export function configureServerDhcpJs(args: ConfigureServerDhcpArgs): string {
     exclusions.length > 0 ? `excl=${exclusions.length}` : null,
   ].filter(Boolean).join(", ");
   return withLabel(
-    `Configurando DHCP en ${args.device}:${port}${summary ? ` (${summary})` : ""}`,
+    `Configuring DHCP on ${args.device}:${port}${summary ? ` (${summary})` : ""}`,
     `(function(){` +
       `var lines=[];` +
       `var d=${'ipc.network()'}.getDevice(${jsStr(args.device)});` +

@@ -119,7 +119,7 @@ describe("validateModuleFamily", () => {
   });
 
   test("HWIC-2T accepted on ISR 4xxx in PT 9 (compatibility shim, verified 2026-05-01)", () => {
-    // PT 9 accepts HWIC-2T in NIM bays "por compatibilidad" — so we no
+    // PT 9 accepts HWIC-2T in NIM bays "for compatibility" — so we no
     // longer reject the combination at the family layer. Real Cisco only
     // accepts NIM there, but PT is permissive and AGENTS.md documents it.
     expect(validateModuleFamily("ISR4321", "HWIC-2T")).toBeNull();
@@ -132,7 +132,7 @@ describe("validateModuleFamily", () => {
   });
 
   test("NIM-2T accepted on ISR G2 in PT 9 (compatibility shim, verified 2026-05-01)", () => {
-    // PT 9 accepts NIM-2T in HWIC/EHWIC bays "por compatibilidad" — the
+    // PT 9 accepts NIM-2T in HWIC/EHWIC bays "for compatibility" — the
     // real Cisco ordering guides forbid this combination, but PT's chassis
     // simulation is permissive and we mirror that policy. Same approach as
     // HWIC-2T in ISR 4xxx NIM bays (see test above).

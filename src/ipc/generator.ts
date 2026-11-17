@@ -18,13 +18,13 @@ const LW = "ipc.appWindow().getActiveWorkspace().getLogicalWorkspace()";
 const NET = "ipc.network()";
 
 /**
- * Heurística para etiquetar bloques CLI multi-línea con un resumen humano.
- * Reconoce los patrones típicos que `pt_cook_topology` y `pt_apply_*` empujan
- * (OSPF, EIGRP, BGP, IP, DHCP, VLAN, NAT, ACL...). Si no encuentra ningún
- * patrón, cae a la primera línea significativa.
+ * Heuristics to label multi-line CLI blocks with a human summary.
+ * Recognizes typical patterns pushed by `pt_cook_topology` and `pt_apply_*`
+ * (OSPF, EIGRP, BGP, IP, DHCP, VLAN, NAT, ACL...). If no known pattern is
+ * found, falls back to the first significant line.
  */
 function describeCliBlock(lines: readonly string[]): string {
-  if (lines.length === 0) return "(vacío)";
+  if (lines.length === 0) return "(empty)";
   const text = lines.join(" ").toLowerCase();
   const tags: string[] = [];
   const push = (t: string) => { if (!tags.includes(t)) tags.push(t); };
@@ -44,8 +44,8 @@ function describeCliBlock(lines: readonly string[]): string {
   if (/\binterface vlan\b|\bint vlan\b/.test(text)) push("SVI");
   if (/\bip address\b/.test(text)) push("IP");
   if (/\bipv6 address\b/.test(text)) push("IPv6");
-  if (/\bip route\b/.test(text)) push("ruta estática");
-  if (/\bipv6 route\b/.test(text)) push("ruta IPv6");
+  if (/\bip route\b/.test(text)) push("static route");
+  if (/\bipv6 route\b/.test(text)) push("IPv6 route");
   if (/\btelephony-service\b|\bephone\b/.test(text)) push("VoIP");
   if (/\bntp server\b/.test(text)) push("NTP");
   if (/\blogging \d/.test(text)) push("Syslog");
@@ -65,19 +65,19 @@ export interface AddDeviceArgs {
 }
 
 /**
- * Llama a `skipBoot()` justo después de crear el dispositivo. PT 9 deja a
- * routers y switches recién spawneados en el diálogo "Would you like to
- * enter the initial configuration dialog? [yes/no]". En ese estado, las
- * llamadas a `cl.enterCommand("enable")` se descartan porque el parser de
- * IOS espera "yes"/"no", no comandos. Sin skipBoot, todos los smoke tests
- * de Fase 2/3 fallaban con `getOutput()` vacío porque ningún comando
- * llegaba al CLI real. setPower(true) es defensivo: no hace daño si ya
- * estaba encendido y cubre algún caso raro de modelo apagado por defecto.
+ * Calls `skipBoot()` right after creating the device. PT 9 leaves freshly
+ * spawned routers and switches in the "Would you like to enter the initial
+ * configuration dialog? [yes/no]" prompt. In that state, calls to
+ * `cl.enterCommand("enable")` are discarded because the IOS parser expects
+ * "yes"/"no", not commands. Without skipBoot, smoke tests failed with empty
+ * `getOutput()` because no commands reached the actual CLI. setPower(true)
+ * is defensive: harmless if already powered on, and covers rare models
+ * powered off by default.
  */
 export function addDeviceJs(args: AddDeviceArgs): string {
   const typeId = DEVICE_TYPE_ID[args.category];
   return withLabel(
-    `Creando ${args.category} ${args.name} (${args.model}) en (${args.x},${args.y})`,
+    `Creating ${args.category} ${args.name} (${args.model}) at (${args.x},${args.y})`,
     `(function(){` +
       `var lw=${LW};` +
       `var assigned=lw.addDevice(${typeId},${jsStr(args.model)},${args.x},${args.y});` +
@@ -102,7 +102,7 @@ export interface CreateLinkArgs {
 export function createLinkJs(args: CreateLinkArgs): string {
   const cableId = CABLE_TYPE_ID[args.cable];
   return withLabel(
-    `Cableando ${args.deviceA}:${args.portA} ↔ ${args.deviceB}:${args.portB} (${args.cable})`,
+    `Cabling ${args.deviceA}:${args.portA} ↔ ${args.deviceB}:${args.portB} (${args.cable})`,
     `(function(){` +
       `var lw=${LW};` +
       `var ok=lw.createLink(${jsStr(args.deviceA)},${jsStr(args.portA)},${jsStr(args.deviceB)},${jsStr(args.portB)},${cableId});` +
@@ -118,17 +118,17 @@ export function createLinkJs(args: CreateLinkArgs): string {
 }
 
 /**
- * Estado de los dos extremos de un link en PT 9. Combina presencia
- * (`port.getLink() !== null`) con el estado operativo nativo
- * (`isPortUp` / `isProtocolUp`) en un único IPC call.
+ * Status of both link ends in PT 9. Combines link presence
+ * (`port.getLink() !== null`) with native operational status
+ * (`isPortUp` / `isProtocolUp`) in a single IPC call.
  *
- * Formato: `a:link=<0|1>|port=<0|1>|proto=<0|1>;b:...` o `ERR:<motivo>`.
- * `proto=-1` indica que el puerto no expone `isProtocolUp` (cables console
- * / coaxial). Más barato y más fiable que `captureSnapshot()`.
+ * Format: `a:link=<0|1>|port=<0|1>|proto=<0|1>;b:...` or `ERR:<reason>`.
+ * `proto=-1` indicates the port does not expose `isProtocolUp` (console /
+ * coaxial cables). Cheaper and more reliable than `captureSnapshot()`.
  *
- * Para esperar a que el cableado quede registrado tras `lw.createLink`
- * basta con `link=1` en ambos lados. `port`/`proto` solo llegan a `1`
- * cuando la interfaz está `no shutdown` y la capa-2/3 ha convergido.
+ * To wait for cabling registration after `lw.createLink`, `link=1` on both
+ * sides is sufficient. `port`/`proto` only reach `1` once the interface
+ * is `no shutdown` and Layer 2/3 has converged.
  */
 export function linkUpStatusJs(
   deviceA: string,
@@ -137,17 +137,17 @@ export function linkUpStatusJs(
   portB: string,
 ): string {
   return withLabel(
-    `Verificando enlace ${deviceA}:${portA} ↔ ${deviceB}:${portB}`,
+    `Verifying link ${deviceA}:${portA} ↔ ${deviceB}:${portB}`,
     `(function(){` +
       `function st(d,p){` +
-        `var dev=${NET}.getDevice(d);` +
-        `if(!dev)return null;` +
-        `var port=dev.getPort(p);` +
-        `if(!port)return null;` +
-        `var lk=0;try{lk=port.getLink()?1:0;}catch(e){lk=0;}` +
-        `var pu=0;try{pu=port.isPortUp()?1:0;}catch(e){pu=-1;}` +
-        `var prc=0;try{prc=port.isProtocolUp()?1:0;}catch(e){prc=-1;}` +
-        `return "link="+lk+"|port="+pu+"|proto="+prc;` +
+      `var dev=${NET}.getDevice(d);` +
+      `if(!dev)return null;` +
+      `var port=dev.getPort(p);` +
+      `if(!port)return null;` +
+      `var lk=0;try{lk=port.getLink()?1:0;}catch(e){lk=0;}` +
+      `var pu=0;try{pu=port.isPortUp()?1:0;}catch(e){pu=-1;}` +
+      `var prc=0;try{prc=port.isProtocolUp()?1:0;}catch(e){prc=-1;}` +
+      `return "link="+lk+"|port="+pu+"|proto="+prc;` +
       `}` +
       `var sa=st(${jsStr(deviceA)},${jsStr(portA)});` +
       `if(sa===null)return "ERR:a_not_found";` +
@@ -159,20 +159,18 @@ export function linkUpStatusJs(
 }
 
 /**
- * `LogicalWorkspace.autoConnectDevices(QString, QString)` — PT elige el
- * primer ethernet libre en cada lado y el cable correcto (straight para
- * Router↔Switch / PC↔Switch, cross para Switch↔Switch / Router↔Router).
- * Verificado en `scripts/probe-autoconnect.ts` (ver VERIFIED §10.3.8).
+ * `LogicalWorkspace.autoConnectDevices(QString, QString)` — PT selects the
+ * first available Ethernet on each side and the correct cable (straight for
+ * Router↔Switch / PC↔Switch, crossover for Switch↔Switch / Router↔Router).
  *
- * Devuelve `OK|<portA>|<portB>` con los puertos elegidos por PT, leyendo
- * la diferencia entre los puertos linked antes y después de la llamada.
- * Útil para recetas que no necesitan controlar la asignación de puerto.
- * Para cableado fijo (BGP, NAT, troncales con interfaz específica) seguir
- * usando `createLinkJs`.
+ * Returns `OK|<portA>|<portB>` with the ports selected by PT, reading
+ * the difference between linked ports before and after the call.
+ * Useful for recipes that do not require explicit port assignment.
+ * For fixed cabling (BGP, NAT, trunks with specific interfaces) use `createLinkJs`.
  */
 export function autoConnectDevicesJs(deviceA: string, deviceB: string): string {
   return withLabel(
-    `Cableado automático ${deviceA} ↔ ${deviceB}`,
+    `Auto-cabling ${deviceA} ↔ ${deviceB}`,
     `(function(){` +
       `var net=${NET};` +
       `var a=net.getDevice(${jsStr(deviceA)});` +
@@ -202,12 +200,12 @@ export function autoConnectDevicesJs(deviceA: string, deviceB: string): string {
 }
 
 export function removeDeviceJs(name: string): string {
-  return withLabel(`Eliminando dispositivo ${name}`, `${LW}.removeDevice(${jsStr(name)})`);
+  return withLabel(`Removing device ${name}`, `${LW}.removeDevice(${jsStr(name)})`);
 }
 
 export function moveDeviceJs(name: string, x: number, y: number): string {
   return withLabel(
-    `Moviendo ${name} → (${x},${y})`,
+    `Moving ${name} → (${x},${y})`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(name)});` +
       `if(!d)return "ERR:not_found";` +
@@ -219,7 +217,7 @@ export function moveDeviceJs(name: string, x: number, y: number): string {
 
 export function renameDeviceJs(oldName: string, newName: string): string {
   return withLabel(
-    `Renombrando ${oldName} → ${newName}`,
+    `Renaming ${oldName} → ${newName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(oldName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -232,7 +230,7 @@ export function renameDeviceJs(oldName: string, newName: string): string {
 
 export function deleteLinkJs(deviceName: string, portName: string): string {
   return withLabel(
-    `Eliminando enlace en ${deviceName}:${portName}`,
+    `Deleting link on ${deviceName}:${portName}`,
     `${LW}.deleteLink(${jsStr(deviceName)},${jsStr(portName)})`,
   );
 }
@@ -241,12 +239,11 @@ export function deleteLinkJs(deviceName: string, portName: string): string {
  * Run a single CLI command on a router or switch and return the delta of
  * `getOutput()` produced by it. Useful when the caller wants raw text back
  * (e.g. `show ip interface brief`).
- */
-/**
- * `mode` se conserva en la firma por compatibilidad pero PT 9 ya no lo
- * acepta: la API correcta es `cl.enterCommand(cmd)` con un solo argumento.
- * Pasar dos provoca `IPC Call ERROR: ConsoleLine - Invalid arguments for
- * IPC call "enterCommand"`. Documentado en MCP_PACKET_TRACER.md:167.
+ *
+ * `mode` is kept in signature for compatibility, but PT 9 no longer accepts
+ * it: the correct API is `cl.enterCommand(cmd)` with a single argument.
+ * Passing two causes `IPC Call ERROR: ConsoleLine - Invalid arguments for
+ * IPC call "enterCommand"`.
  */
 export function enterCommandJs(deviceName: string, command: string, _mode = ""): string {
   return withLabel(
@@ -290,7 +287,7 @@ export function bulkCliJs(deviceName: string, cliBlock: string, tailChars = 2000
   const userCalls = lines.map(line => `cl.enterCommand(${jsStr(line)})`).join(";");
   const dismissCalls = `cl.enterCommand("");cl.enterCommand("no");cl.enterCommand("")`;
   return withLabel(
-    `Configurando ${deviceName}: ${describeCliBlock(lines)}`,
+    `Configuring ${deviceName}: ${describeCliBlock(lines)}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -319,7 +316,7 @@ export function bulkCliJs(deviceName: string, cliBlock: string, tailChars = 2000
  */
 export function getCliStateJs(deviceName: string): string {
   return withLabel(
-    `Leyendo CLI activa de ${deviceName}`,
+    `Reading active CLI of ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -340,7 +337,7 @@ export function getCliStateJs(deviceName: string): string {
  */
 export function dismissBootDialogJs(deviceName: string): string {
   return withLabel(
-    `Saltando diálogo de arranque en ${deviceName}`,
+    `Dismissing boot dialog on ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -372,7 +369,7 @@ export function dismissBootDialogJs(deviceName: string): string {
  */
 export function inspectModuleSlotJs(deviceName: string, slotPath: string): string {
   return withLabel(
-    `Inspeccionando slot ${slotPath} de ${deviceName}`,
+    `Inspecting slot ${slotPath} on ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -412,7 +409,7 @@ export function setEndpointStaticIpJs(args: EndpointStaticIp): string {
     ? `port.setDefaultGateway(${jsStr(args.gateway)});`
     : "";
   return withLabel(
-    `IP estática ${args.ip}/${args.mask} en ${args.device}:${args.port}${args.gateway ? ` (gw ${args.gateway})` : ""}`,
+    `Static IP ${args.ip}/${args.mask} on ${args.device}:${args.port}${args.gateway ? ` (gw ${args.gateway})` : ""}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(args.device)});` +
       `if(!d)return "ERR:not_found";` +
@@ -428,7 +425,7 @@ export function setEndpointStaticIpJs(args: EndpointStaticIp): string {
 
 export function setEndpointDhcpJs(deviceName: string): string {
   return withLabel(
-    `DHCP en ${deviceName}`,
+    `DHCP on ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -475,7 +472,7 @@ export interface ConfigureApSsidArgs {
 
 export function configureApSsidJs(args: ConfigureApSsidArgs): string {
   return withLabel(
-    `Configurando AP ${args.device}: SSID "${args.ssid}" (encrypt=${args.encryptType}${args.standardChannel !== undefined ? `, ch=${args.standardChannel}` : ""})`,
+    `Configuring AP ${args.device}: SSID "${args.ssid}" (encrypt=${args.encryptType}${args.standardChannel !== undefined ? `, ch=${args.standardChannel}` : ""})`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(args.device)});` +
       `if(!d)return "ERR:not_found";` +
@@ -518,7 +515,7 @@ export function associateWirelessClientJs(args: AssociateWirelessClientArgs): st
   // associates regardless of SSID/key.
   const authType = args.encryptType === 0 ? 0 : 3;
   return withLabel(
-    `Asociando ${args.device} a SSID "${args.ssid}" (auth=${authType}, encrypt=${args.encryptType}${args.dhcp !== false ? ", DHCP" : ""})`,
+    `Associating ${args.device} with SSID "${args.ssid}" (auth=${authType}, encrypt=${args.encryptType}${args.dhcp !== false ? ", DHCP" : ""})`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(args.device)});` +
       `if(!d)return "ERR:not_found";` +
@@ -582,7 +579,7 @@ export function associateWirelessClientJs(args: AssociateWirelessClientArgs): st
  */
 export function swapToWirelessJs(deviceName: string, moduleName = "PT-LAPTOP-NM-1W"): string {
   return withLabel(
-    `Cambiando ${deviceName} a NIC inalámbrica (${moduleName})`,
+    `Switching ${deviceName} to wireless NIC (${moduleName})`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -620,7 +617,7 @@ export function swapToWirelessJs(deviceName: string, moduleName = "PT-LAPTOP-NM-
  */
 export function listDevicesJs(): string {
   return withLabel(
-    "Listando dispositivos del canvas (nombre, modelo, posición)",
+    "Listing canvas devices (name, model, position)",
     `(function(){` +
       `var net=${NET};` +
       `var n=net.getDeviceCount();` +
@@ -642,7 +639,7 @@ export function listDevicesJs(): string {
  */
 export function describeDeviceJs(name: string): string {
   return withLabel(
-    `Describiendo dispositivo ${name} (puertos, IPs, módulos)`,
+    `Describing device ${name} (ports, IPs, modules)`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(name)});` +
       `if(!d)return "ERR:not_found";` +
@@ -695,7 +692,7 @@ export function describeDeviceJs(name: string): string {
  */
 export function addModuleJs(deviceName: string, slotPath: string, model: string): string {
   return withLabel(
-    `Instalando módulo ${model} en ${deviceName} slot ${slotPath}`,
+    `Installing module ${model} in ${deviceName} slot ${slotPath}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -729,7 +726,7 @@ export function addModuleJs(deviceName: string, slotPath: string, model: string)
  */
 export function listModulesJs(): string {
   return withLabel(
-    "Listando catálogo de módulos hardware (HWIC, NM, WIC)",
+    "Listing hardware module catalog (HWIC, NM, WIC)",
     `(function(){` +
       `var mods=ipc.hardwareFactory().modules();` +
       `var n=mods.getAvailableModuleCount();` +
@@ -745,29 +742,20 @@ export function listModulesJs(): string {
 }
 
 /**
- * Persiste la `running-config` actual del dispositivo a `startup-config`
- * (NVRAM). Necesario tras aplicar cambios — vía CLI o vía API nativa —
- * cuando el dispositivo puede reiniciarse durante la sesión (p.ej.
- * `setPower(false)` para instalar un NIM, cierres de PT, etc.). Sin esto,
- * todo lo aplicado se pierde al primer reboot del modelo, aunque el `.pkt`
- * sí preserve el modelo si se guarda el archivo.
+ * Persists device running-config to startup-config (NVRAM). Necessary after
+ * applying changes via CLI or native API when device might be rebooted during
+ * the session (e.g. setPower(false) to install a NIM, PT restarts, etc.).
  *
- * Implementación: lee `cl.getMode()` y solo envía `end` si seguimos en
- * modo de configuración (`config*`). Sin este gating, `end` enviado en
- * privileged EXEC es interpretado por IOS como hostname para auto-telnet
- * (`Translating "end"...domain server (255.255.255.255)`) — la
- * resolución DNS bloquea el CLI ~30 s y las llamadas posteriores
- * (`enable`, `write memory`, y cualquier `show ...`) se quedan en cola
- * sin ejecutarse: `cl.getOutput().length` queda congelada y todo
- * `enterCommand` es no-op silencioso. Verificado con
- * `scripts/probe-cli-buffer.ts` el 2026-04-29 (S3-S5: buffer congelado
- * en 4401 chars tras un `end` no-condicional). Lección clave del CLI de
- * PT 9: NUNCA enviar `end` en priv EXEC si `no ip domain-lookup` no está
- * configurado.
+ * Implementation: reads `cl.getMode()` and only sends `end` if still in
+ * config mode (`config*`). Without this gating, `end` sent in privileged
+ * EXEC is interpreted by IOS as a hostname for auto-telnet
+ * (`Translating "end"...domain server (255.255.255.255)`), blocking the
+ * CLI for ~30s while DNS lookup runs. Key lesson in PT 9: NEVER send `end`
+ * in privileged EXEC unless `no ip domain-lookup` is configured.
  */
 export function saveRunningConfigJs(deviceName: string, tailChars = 200): string {
   return withLabel(
-    `Guardando running-config de ${deviceName} en NVRAM`,
+    `Saving running-config of ${deviceName} to NVRAM`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -794,7 +782,7 @@ export function saveRunningConfigJs(deviceName: string, tailChars = 200): string
  */
 export function setAccessPortNativeJs(deviceName: string, portName: string, vlanId: number): string {
   return withLabel(
-    `Asignando ${deviceName}:${portName} como access VLAN ${vlanId}`,
+    `Assigning ${deviceName}:${portName} as access VLAN ${vlanId}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:device_not_found";` +
@@ -815,14 +803,13 @@ export function setAccessPortNativeJs(deviceName: string, portName: string, vlan
  * Toggle Device.setPower. Verifies via getPower() readback. Idempotent: a
  * device already in the desired state returns "OK|already=<bool>".
  *
- * `skipBoot()` se llama tras un encendido para empujar al router/switch fuera
- * del diálogo inicial de IOS — sin él, el smoke 13704 ya documentó que las
- * llamadas a `enterCommand("enable")` se descartan en silencio mientras el
- * parser espera "yes/no".
+ * `skipBoot()` is called after power-on to push router/switch past the
+ * initial IOS dialog — without it, calls to `enterCommand("enable")` are
+ * silently discarded while the parser waits for "yes/no".
  */
 export function setDevicePowerJs(deviceName: string, on: boolean): string {
   return withLabel(
-    `${on ? "Encendiendo" : "Apagando"} ${deviceName}`,
+    `${on ? "Powering on" : "Powering off"} ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -839,17 +826,16 @@ export function setDevicePowerJs(deviceName: string, on: boolean): string {
 }
 
 /**
- * Lee la base VLAN viva de un switch o router que exponga VlanManager via
- * `getProcess`. Recorre nombres conocidos del proceso ("Switch",
- * "VlanManager", "MultilayerSwitch") porque PT 9 no estandariza la clave.
+ * Reads live VLAN database of a switch or router exposing VlanManager via
+ * `getProcess`. Iterates through known process names ("Switch",
+ * "VlanManager", "MultilayerSwitch") because PT 9 does not standardize the key.
  *
- * Devuelve filas pipe-separadas: `<id>|<name>|<isDefault>|<macCount>` y como
- * primera línea el conteo, o `ERR:no_vlan_manager` si el dispositivo no es
- * un L2/L3 switch.
+ * Returns pipe-separated rows: `<id>|<name>|<isDefault>|<macCount>` and the
+ * count as first line, or `ERR:no_vlan_manager` if not an L2/L3 switch.
  */
 export function listVlansJs(deviceName: string): string {
   return withLabel(
-    `Leyendo VLANs de ${deviceName}`,
+    `Reading VLANs from ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -874,16 +860,16 @@ export function listVlansJs(deviceName: string): string {
 }
 
 /**
- * Enumera el estado live de cada Port de un dispositivo. Combina presencia de
- * link, isPortUp, isProtocolUp, MAC, IP/máscara y wireless flag — más
- * detallado que `describeDeviceJs`, que sólo lee IP y link.
+ * Enumerates live state of each Port on a device. Combines link presence,
+ * isPortUp, isProtocolUp, MAC, IP/mask and wireless flag — more detailed
+ * than `describeDeviceJs` which only reads IP and link.
  *
- * Formato por fila: `port|link|portUp|protoUp|mac|ip|mask|wireless`.
- * `portUp`/`protoUp` se devuelven como `0|1|-1` (-1 si la API tira en ese port).
+ * Format per row: `port|link|portUp|protoUp|mac|ip|mask|wireless`.
+ * `portUp`/`protoUp` returned as `0|1|-1` (-1 if API unavailable on that port).
  */
 export function inspectPortsJs(deviceName: string): string {
   return withLabel(
-    `Inspeccionando puertos de ${deviceName}`,
+    `Inspecting ports on ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -908,17 +894,16 @@ export function inspectPortsJs(deviceName: string): string {
 }
 
 /**
- * Lee el AclProcess vivo de un router. Itera por todos los Acl objects y
- * devuelve los comandos canónicos vía `getCommandAt` — la representación más
- * cercana a lo que `show running-config | section access-list` produciría,
- * pero leída directamente del modelo, sin pasar por el CLI.
+ * Reads live AclProcess from a router. Iterates through all Acl objects and
+ * returns canonical commands via `getCommandAt` — closest representation to
+ * `show running-config | section access-list`, read directly from the model.
  *
- * Formato: cada ACL precedida por `ACL|<id>|<extended>|<count>`, seguida de
- * `  <command>` por cada statement. Primera línea: número total de ACLs.
+ * Format: each ACL preceded by `ACL|<id>|<extended>|<count>`, followed by
+ * `  <command>` per statement. First line: total number of ACLs.
  */
 export function readAclsJs(deviceName: string): string {
   return withLabel(
-    `Leyendo ACLs de ${deviceName}`,
+    `Reading ACLs from ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -957,7 +942,7 @@ export function readAclsJs(deviceName: string): string {
  */
 export function listInstalledModulesJs(deviceName: string): string {
   return withLabel(
-    `Listando módulos instalados en ${deviceName}`,
+    `Listing installed modules on ${deviceName}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
@@ -987,21 +972,21 @@ export function listInstalledModulesJs(deviceName: string): string {
 }
 
 /**
- * Devuelve la jerarquía de clusters lógicos del workspace.
+ * Returns the logical cluster hierarchy of the workspace.
  *
- * `addCluster()` en PT 9 sólo opera sobre la *selección* del UI y no hay
- * IPC para programar la selección, por lo que la creación queda fuera. Sí
- * podemos leer la estructura existente y borrar clusters por id (verbo
- * directo `removeCluster`).
+ * `addCluster()` in PT 9 only operates on the UI selection and there is
+ * no IPC to program the selection, so cluster creation is omitted. We can,
+ * however, read the existing structure and delete clusters by ID (direct
+ * verb `removeCluster`).
  *
- * Formato:
- *   - Primera línea: `<count>`
- *   - Una fila por cluster (root incluido): `<id>|<name>|<x>|<y>|<parentId>`
- *     donde root tiene `parentId=""`.
+ * Format:
+ *   - First line: `<count>`
+ *   - One row per cluster (including root): `<id>|<name>|<x>|<y>|<parentId>`
+ *     where root has `parentId=""`.
  */
 export function listClustersJs(): string {
   return withLabel(
-    "Listando clusters lógicos",
+    "Listing logical clusters",
     `(function(){` +
       `var lw=${LW};` +
       `var root=null;try{root=lw.getRootCluster();}catch(e){return "ERR:no_root_cluster:"+e;}` +
@@ -1011,9 +996,9 @@ export function listClustersJs(): string {
         `if(!c)return;` +
         `var id="";try{id=String(c.getId()||"");}catch(e){}` +
         `var nm="";try{nm=String(c.getName()||"");}catch(e){}` +
-        // Root cluster es virtual: getXCoordinate/getYCoordinate desreferencian
-        // un puntero NULL nativo y crashean PT 9 (EXC_BAD_ACCESS, no JS catchable).
-        // Solo leemos coordenadas en clusters hijos.
+        // Root cluster is virtual: getXCoordinate/getYCoordinate dereference
+        // a native NULL pointer and crash PT 9 (EXC_BAD_ACCESS, not catchable in JS).
+        // We only read coordinates on child clusters.
         `var x=0,y=0;` +
         `if(parentId!==""){` +
           `try{x=Number(c.getXCoordinate());}catch(e){}` +
@@ -1034,7 +1019,7 @@ export function listClustersJs(): string {
 
 export function removeClusterJs(clusterId: string, keepContents: boolean): string {
   return withLabel(
-    `Eliminando cluster ${clusterId}${keepContents ? " (preservando contenido)" : ""}`,
+    `Removing cluster ${clusterId}${keepContents ? " (preserving contents)" : ""}`,
     `(function(){` +
       `var lw=${LW};` +
       `try{lw.removeCluster(${jsStr(clusterId)},${keepContents ? "true" : "false"});}` +
@@ -1047,7 +1032,7 @@ export function removeClusterJs(clusterId: string, keepContents: boolean): strin
 
 export function unClusterJs(clusterId: string): string {
   return withLabel(
-    `Deshaciendo cluster ${clusterId}`,
+    `Unclustering cluster ${clusterId}`,
     `(function(){` +
       `var lw=${LW};` +
       `try{lw.unCluster(${jsStr(clusterId)});}` +
@@ -1067,7 +1052,7 @@ export interface AddNoteArgs {
 export function addNoteJs(args: AddNoteArgs): string {
   const fs = args.fontSize ?? 12;
   return withLabel(
-    `Añadiendo nota en (${args.x},${args.y}): "${truncateForLabel(args.text, 40)}"`,
+    `Adding note at (${args.x},${args.y}): "${truncateForLabel(args.text, 40)}"`,
     `(function(){` +
       `var lw=${LW};` +
       `var uuid="";` +
@@ -1101,7 +1086,7 @@ export function drawShapeJs(args: DrawShapeArgs): string {
   if (args.kind === "line") {
     const y2 = args.d ?? args.b;
     return withLabel(
-      `Dibujando línea de (${args.a},${args.b}) → (${args.c},${y2})`,
+      `Drawing line from (${args.a},${args.b}) → (${args.c},${y2})`,
       `(function(){` +
         `var lw=${LW};` +
         `var uuid="";` +
@@ -1113,11 +1098,11 @@ export function drawShapeJs(args: DrawShapeArgs): string {
     );
   }
   return withLabel(
-    `Dibujando círculo en (${args.a},${args.b}) radio ${args.c}`,
+    `Drawing circle at (${args.a},${args.b}) with radius ${args.c}`,
     `(function(){` +
       `var lw=${LW};` +
       `var uuid="";` +
-      // drawCircle no acepta thickness, solo (x, y, radius, r, g, b, a).
+      // drawCircle does not accept thickness, only (x, y, radius, r, g, b, a).
       `try{uuid=String(lw.drawCircle(${args.a},${args.b},${args.c},${cr},${cg},${cb},${ca})||"");}` +
       `catch(e){return "ERR:drawCircle:"+e;}` +
       `if(!uuid)return "ERR:no_uuid";` +
@@ -1127,18 +1112,18 @@ export function drawShapeJs(args: DrawShapeArgs): string {
 }
 
 /**
- * NetworkFile metadata del .pkt actualmente abierto. Llama a `getNetworkFile`
- * desde `appWindow().getActiveWorkspace()` y lee descripción + versión.
+ * NetworkFile metadata of the currently open .pkt. Calls `getNetworkFile`
+ * from `appWindow().getActiveWorkspace()` and reads description + version.
  *
- * Formato `key|value` por línea: `description|...`, `version|...`,
- * `filename|...`. Las claves no presentes vienen vacías ("description|").
+ * Format `key|value` per line: `description|...`, `version|...`,
+ * `filename|...`. Keys not present return empty ("description|").
  */
 export function readProjectMetadataJs(): string {
   return withLabel(
-    "Leyendo metadatos del proyecto .pkt",
+    "Reading .pkt project metadata",
     `(function(){` +
-      // El acceso correcto es appWindow().getActiveFile(); getActiveWorkspace()
-      // no expone NetworkFile en PT 9.0.0.0810.
+      // Correct access is appWindow().getActiveFile(); getActiveWorkspace()
+      // does not expose NetworkFile in PT 9.0.0.0810.
       `var aw=null;try{aw=ipc.appWindow();}catch(e){return "ERR:no_app_window:"+e;}` +
       `if(!aw)return "ERR:no_app_window";` +
       `var nf=null;try{nf=aw.getActiveFile();}catch(e){return "ERR:getActiveFile:"+e;}` +

@@ -17,18 +17,18 @@ import type {
 } from "./intents.js";
 
 /**
- * Mensaje de error compartido. Se lanza cuando el blueprint declara clientes
- * wireless. Documentado en docs/ROADMAP.md (fase 6) y docs/VERIFIED.md
- * (F6-03/04/05): la JS IPC pública de PT 9 expone setters de
- * `WirelessClientProcess`, pero no dispara la asociación radio. La GUI
- * asocia vía código nativo C++ no expuesto a `ipc.network()`. Verificado
- * con scripts/probe-wireless-associate.ts (siete estrategias, todas dead-end).
+ * Shared error message. Thrown when the blueprint declares wireless clients.
+ * Documented in docs/ROADMAP.md (phase 6) and docs/VERIFIED.md
+ * (F6-03/04/05): public JS IPC in PT 9 exposes setters on
+ * `WirelessClientProcess`, but does not trigger radio association. The GUI
+ * associates via native C++ code not exposed to `ipc.network()`. Verified
+ * with scripts/probe-wireless-associate.ts (seven strategies, all dead ends).
  */
 const WIRELESS_ASSOC_DEAD_END =
   "PT 9 IPC does not trigger wireless association: the JS API exposes " +
   "WirelessClientProcess setters but the radio link is established by " +
   "native C++ code that is not reachable from ipc.network(). " +
-  "See docs/ROADMAP.md fase 6 and scripts/probe-wireless-associate.ts.";
+  "See docs/ROADMAP.md phase 6 and scripts/probe-wireless-associate.ts.";
 
 export interface WirelessAction {
   readonly device: string;
@@ -76,9 +76,9 @@ export async function applyClientAssociations(
   clients: readonly ClientAssociationIntent[],
 ): Promise<WirelessAction[]> {
   if (clients.length === 0) return [];
-  // Validamos para que errores de configuración afloren antes que el dead-end
-  // (así quien lea el error sabe que su intent estaba bien formado, el
-  // problema es la API).
+  // Validate so that configuration errors surface before the dead end
+  // (so whoever reads the error knows their intent was well-formed; the
+  // issue is the PT API).
   for (const client of clients) validateClientAssociation(client);
   const targets = clients.map(c => `${c.device}->${c.ssid}`).join(", ");
   throw new Error(`${WIRELESS_ASSOC_DEAD_END} Affected clients: ${targets}.`);

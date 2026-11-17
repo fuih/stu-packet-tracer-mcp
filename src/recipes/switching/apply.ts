@@ -70,10 +70,10 @@ async function pushNative(bridge: Bridge, device: string, label: string, expr: s
 }
 
 /**
- * Persiste running→startup. Imprescindible tras mutaciones nativas o CLI
- * porque PT puede reiniciar el modelo (p.ej. al instalar un NIM con
- * setPower(false)), reaplicando solo la startup-config y descartando todo
- * lo aplicado en RAM.
+ * Persists running→startup. Essential after native or CLI mutations
+ * because PT can reset the model (e.g. when installing a NIM with
+ * setPower(false)), reapplying only the startup-config and discarding
+ * anything applied only in RAM.
  */
 async function saveStartup(bridge: Bridge, device: string): Promise<void> {
   const reply = await bridge.sendAndWait(saveRunningConfigJs(device), { timeoutMs: 15_000 });
@@ -109,21 +109,21 @@ export async function applyVlans(bridge: Bridge, vlans: readonly VlanIntent[]): 
 
 /**
  * Trunks via CLI: `interface X / switchport mode trunk / switchport trunk
- * allowed vlan ... / switchport trunk native vlan N`. Una sola tirada CLI
- * por switch (todas las interfaces concatenadas), wrapped en
+ * allowed vlan ... / switchport trunk native vlan N`. A single CLI run
+ * per switch (all interfaces concatenated), wrapped in
  * `enable + configure terminal + end`.
  *
- * **Por qué CLI y no API nativa**: el probe
- * `scripts/probe-3650-trunk-rendering.ts` (2026-05-01) descubrió que la
- * API nativa expone los métodos pero rompe el rendering del running-config:
- *  - `addTrunkVlans(start,end)` persiste el estado pero NO emite la línea
- *    `switchport trunk allowed vlan X,Y` — el VLAN-pruning se pierde en
- *    el .pkt y en cualquier export CLI.
- *  - `setAdminOpMode(2)` SÍ emite `switchport mode trunk` pero requiere
- *    detección por modelo (los enteros varían entre IOS clásico/XE).
- * El path CLI es uniforme entre 2960/3560/3650/IE-3400 y produce las 3
- * líneas (`mode trunk` + `allowed vlan` + `native vlan`) en running-config,
- * que es el contrato observable por el resto del flujo.
+ * **Why CLI instead of native API**: the probe
+ * `scripts/probe-3650-trunk-rendering.ts` (2026-05-01) discovered that the
+ * native API exposes the methods but breaks running-config rendering:
+ *  - `addTrunkVlans(start,end)` persists state but does NOT emit the line
+ *    `switchport trunk allowed vlan X,Y` — VLAN pruning is lost in
+ *    the .pkt and in any CLI export.
+ *  - `setAdminOpMode(2)` DOES emit `switchport mode trunk` but requires
+ *    per-model detection (integer values differ between classic IOS/XE).
+ * The CLI path is uniform across 2960/3560/3650/IE-3400 and produces all 3
+ * lines (`mode trunk` + `allowed vlan` + `native vlan`) in running-config,
+ * which is the contract observable by downstream tooling.
  */
 export async function applyTrunks(bridge: Bridge, trunks: readonly TrunkIntent[]): Promise<SwitchAction[]> {
   const out: SwitchAction[] = [];

@@ -30,7 +30,7 @@ export const registerDeleteLinkTool: ToolModule = ({ bridge, server }) => {
       if (result === "true" || result === "OK" || result === "undefined") {
         // Drop the matching entry from the local registry. We only know
         // one endpoint, so iterate and remove any link that touches
-        // (device, port). Ver canvas/link-registry.ts para el contexto.
+        // (device, port). See canvas/link-registry.ts for full context.
         for (const link of linkRegistry.all()) {
           const matchesA = link.aDevice === device && link.aPort === port;
           const matchesB = link.bDevice === device && link.bPort === port;

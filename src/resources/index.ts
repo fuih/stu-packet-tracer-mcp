@@ -39,7 +39,7 @@ async function readCached(path: string, fallback: string): Promise<string> {
   }
 }
 
-const WIRING_CONVENTIONS = `# Cabling conventions for packet-tracer-mcp
+const WIRING_CONVENTIONS = `# Cabling conventions for stu-packet-tracer-mcp
 
 | Link kind                                       | Cable     | Interfaces                          |
 | ----------------------------------------------- | --------- | ----------------------------------- |
@@ -54,7 +54,7 @@ const WIRING_CONVENTIONS = `# Cabling conventions for packet-tracer-mcp
 If the brief mentions any of these, it's a SERIAL WAN link:
   - "public addressing /30"
   - "ISP", "Internet provider", "WAN"
-  - "punto a punto público" / "linea WAN"
+  - "public point-to-point" / "WAN line"
   - red lines between routers crossing an Internet cloud in the diagram
 
 Otherwise it's a Gigabit LAN link.
