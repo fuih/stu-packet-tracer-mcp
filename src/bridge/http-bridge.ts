@@ -42,7 +42,9 @@ export function isAllowedOrigin(originHeader: string | null): boolean {
   if (!originHeader || originHeader === "null") return true;
   const o = originHeader.toLowerCase();
   if (o.startsWith("file://")) return true;
-  if (o.startsWith("pt-sm://")) return true;
+  if (o.startsWith("pt-sm:")) return true;
+  if (o.startsWith("this-sm:")) return true;
+  if (o.startsWith("file-sm:")) return true;
   if (o.startsWith("chrome-extension://")) return true;
   if (o.startsWith("vscode-webview://")) return true;
   try {
@@ -89,6 +91,8 @@ export class Bridge {
     this.bunServer = Bun.serve({
       hostname: this.host,
       port: this._port,
+      // Long-poll /v1/next holds connections open up to 60s; default Bun idleTimeout (10s) would abort them.
+      idleTimeout: 120,
       fetch: (req) => this.handle(req),
     });
   }
@@ -280,7 +284,6 @@ export class Bridge {
 
     const url = new URL(req.url);
     const method = req.method.toUpperCase();
-    this.lastSeenAt = Date.now();
 
     if (method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -298,6 +301,7 @@ export class Bridge {
     }
 
     if (method === "GET" && url.pathname === "/v1/next") {
+      this.lastSeenAt = Date.now();
       const waitParam = Number(url.searchParams.get("wait") ?? 25_000);
       const waitMs = Math.min(Math.max(100, isNaN(waitParam) ? 25_000 : waitParam), 60_000);
 
@@ -308,21 +312,38 @@ export class Bridge {
         return new Response(JSON.stringify(cmd), { headers: HEADERS_JSON });
       }
 
-      // Otherwise park the request
+      // Otherwise park the request and clean up immediately if the client aborts
       return new Promise<Response>((resolve) => {
         let settled = false;
+        const removeWaiter = () => {
+          const idx = this.parkedWaiters.findIndex(w => w.resolve === onReady);
+          if (idx >= 0) this.parkedWaiters.splice(idx, 1);
+        };
+
+        const cleanup = () => {
+          clearTimeout(timer);
+          removeWaiter();
+          req.signal.removeEventListener("abort", onAbort);
+        };
+
+        const onAbort = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(new Response(null, { status: 204, headers: HEADERS_JSON }));
+        };
+
         const timer = setTimeout(() => {
           if (settled) return;
           settled = true;
-          const idx = this.parkedWaiters.findIndex(w => w.resolve === onReady);
-          if (idx >= 0) this.parkedWaiters.splice(idx, 1);
+          cleanup();
           resolve(new Response(null, { status: 204, headers: HEADERS_JSON }));
         }, waitMs);
 
         const onReady = (cmd: CommandEnvelope | null) => {
           if (settled) return;
           settled = true;
-          clearTimeout(timer);
+          cleanup();
           if (cmd) {
             resolve(new Response(JSON.stringify(cmd), { headers: HEADERS_JSON }));
           } else {
@@ -330,11 +351,17 @@ export class Bridge {
           }
         };
 
+        if (req.signal.aborted) {
+          onAbort();
+          return;
+        }
+        req.signal.addEventListener("abort", onAbort, { once: true });
         this.parkedWaiters.push({ resolve: onReady, timer });
       });
     }
 
     if (method === "POST" && url.pathname === "/v1/result") {
+      this.lastSeenAt = Date.now();
       let envelope: ResultEnvelope;
       try {
         envelope = (await req.json()) as ResultEnvelope;
@@ -368,6 +395,7 @@ export class Bridge {
     }
 
     if (method === "GET" && url.pathname === "/next") {
+      this.lastSeenAt = Date.now();
       if (this.queue.length > 0) {
         const cmd = this.queue.shift()!;
         this.inFlightId = cmd.id;
@@ -384,6 +412,7 @@ export class Bridge {
     }
 
     if (method === "POST" && url.pathname === "/result") {
+      this.lastSeenAt = Date.now();
       const hexBody = await req.text();
       this.deliverLegacyResult(hexFromBridgeToText(hexBody));
       return new Response("ok", { headers: HEADERS_TEXT });

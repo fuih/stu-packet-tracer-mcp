@@ -25,13 +25,40 @@ function cleanUp() {
 }
 
 function openBridgeWindow() {
-  if (typeof gui !== "undefined" && gui && typeof gui.createWebView === "function") {
-    stuWebView = gui.createWebView("Student MCP Bridge", "index.html", 460, 560);
-    if (stuWebView && typeof stuWebView.show === "function") {
+  var wv = null;
+  var uiUrl = "this-sm:index.html";
+  try {
+    if (typeof webViewManager !== "undefined" && webViewManager && typeof webViewManager.createWebView === "function") {
+      wv = webViewManager.createWebView("Student MCP Bridge", uiUrl, 460, 560);
+    } else if (
+      typeof ipc !== "undefined" &&
+      ipc &&
+      typeof ipc.appWindow === "function" &&
+      ipc.appWindow() &&
+      typeof ipc.appWindow().getWebViewManager === "function"
+    ) {
+      var mgr = ipc.appWindow().getWebViewManager();
+      if (mgr && typeof mgr.createWebView === "function") {
+        wv = mgr.createWebView("Student MCP Bridge", uiUrl, 460, 560);
+      }
+    } else if (typeof gui !== "undefined" && gui && typeof gui.createWebView === "function") {
+      wv = gui.createWebView("Student MCP Bridge", uiUrl, 460, 560);
+    } else if (typeof window !== "undefined" && window.webview) {
+      wv = window.webview;
+    }
+  } catch (err) {
+    if (typeof print === "function") {
+      print("[stu-mcp-bridge] Failed to open WebView: " + String(err));
+    }
+  }
+
+  if (wv) {
+    stuWebView = wv;
+    if (typeof stuWebView.show === "function") {
       stuWebView.show();
     }
-  } else if (typeof window !== "undefined" && window.webview) {
-    stuWebView = window.webview;
+  } else if (typeof print === "function") {
+    print("[stu-mcp-bridge] Warning: no WebView manager API found in this Packet Tracer build.");
   }
 }
 

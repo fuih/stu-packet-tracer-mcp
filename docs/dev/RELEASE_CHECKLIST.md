@@ -28,33 +28,34 @@ Status recorded on **2026-11-17** prior to human handoff (`fuih`).
 
 ---
 
-## Manual Human Steps Before Publishing `v0.1.0`
+## Live Packet Tracer 9 Smoke Test (Completed 2026-11-17)
 
-Packet Tracer 9 was not running during automated build verification, and git remote pushes / npm publishing are reserved for `fuih`. Complete these steps before tagging `v0.1.0`:
+Tested live against **Cisco Packet Tracer 9.0.1** running our open-source **Student MCP Bridge (`Protocol: v1`)** with `/home/fuih/network/Workshop_Static_Routing.pkt`:
 
-### 1. Package the English PT 9 Extension (`.pts`)
-Follow [docs/BUILD_EXTENSION.md](../BUILD_EXTENSION.md) inside Cisco Packet Tracer 9 to package `extension/src/` into `extension/dist/stu-mcp-bridge.pts` and commit the `.pts` artifact.
+- [x] `bun scripts/mcp-call.ts pt_bridge_status '{}'` -> `connected: true`, `protocol: v1`
+- [x] `bun scripts/mcp-call.ts pt_run_cli '{"device":"R1","command":"show running-config"}'` -> full config ending in `end`, zero `--More--`
+- [x] `bun scripts/mcp-call.ts pt_run_cli '{"device":"R2","command":"show ip route"}'` twice in a row -> identical output, zero eaten characters
+- [x] `bun scripts/mcp-call.ts pt_ping_matrix '{"devices":["A","B","C","D"],"render_image":true}'` -> 12/12 pairs `PASS 4/4` (`ping-matrix.svg` + `ping-matrix.png`)
+- [x] `bun scripts/mcp-call.ts pt_capture_cli '{"device":"R1","commands":["show ip route","show ip arp"],"format":"both"}'` & `pt_capture_pc_command` (`A` `ipconfig`, `ping 40.0.0.2`) -> crisp retina PNGs & SVGs visually verified
+- [x] `bun scripts/mcp-call.ts pt_addressing_table '{}'` -> 12 rows matching static-routing lab including all 4 PC default gateways (`10.0.0.1`, `20.0.0.1`, `30.0.0.1`, `40.0.0.1`)
+- [x] `bun scripts/mcp-call.ts pt_export_report '{...}'` -> generated `workshop-static-default-routing.docx` (499 KB), `.html` (142 KB), `.md` (2.0 KB), `topology.png`, `ping-matrix.png`, and 4 terminal captures
+- [x] Killed and restarted `bun run src/index.ts` mid-session -> extension auto-reconnected on tick 1 (~1s) without touching Packet Tracer
 
-### 2. Run Live Smoke Test Against Packet Tracer 9
-Start `stu-packet-tracer-mcp` (`bun run src/index.ts`), open Cisco Packet Tracer 9 with the **Student MCP Bridge** active, and load `/home/fuih/network/Workshop_Static_Routing.pkt`:
+---
 
-- [ ] `bun scripts/mcp-call.ts pt_bridge_status '{}'` -> `connected: true`, `protocol: 1`
-- [ ] `bun scripts/mcp-call.ts pt_run_cli '{"device":"R1","command":"show running-config"}'` -> full config ending in `end`, no `--More--`
-- [ ] `bun scripts/mcp-call.ts pt_run_cli '{"device":"R2","command":"show ip route"}'` twice in a row -> identical output, no eaten characters
-- [ ] `bun scripts/mcp-call.ts pt_ping_matrix '{"devices":["A","B","C","D"]}'` -> all pairs pass after ARP warm-up
-- [ ] `bun scripts/mcp-call.ts pt_capture_cli '{"device":"R1","commands":["show ip route","show ip arp"],"format":"both"}'` -> open generated SVG & PNG files and visually inspect
-- [ ] `bun scripts/mcp-call.ts pt_addressing_table '{}'` -> matches static-routing lab addressing table
-- [ ] `bun scripts/mcp-call.ts pt_export_report '{...}'` -> open generated `report.docx` in LibreOffice/Word and `report.html` in browser (Print -> Save as PDF)
-- [ ] Kill and restart `bun run src/index.ts` mid-session -> verify extension reconnects automatically within ~10 seconds
+## Remaining Manual Steps Before Publishing `v0.1.0`
 
-### 3. Create GitHub Repository & Push `main`
+### 1. Commit the Packaged `.pts` Extension (if exported)
+Ensure `extension/dist/stu-mcp-bridge.pts` is exported from Packet Tracer per [docs/BUILD_EXTENSION.md](../BUILD_EXTENSION.md) and committed.
+
+### 2. Create GitHub Repository & Push `main`
 ```bash
 git remote add origin https://github.com/fuih/stu-packet-tracer-mcp.git
 git push -u origin main
 ```
 Verify GitHub Actions CI passes on `ubuntu-latest`, `windows-latest`, and `macos-latest`.
 
-### 4. Tag & Publish `v0.1.0`
+### 3. Tag & Publish `v0.1.0`
 ```bash
 git tag -a v0.1.0 -m "Release v0.1.0"
 git push origin v0.1.0

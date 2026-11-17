@@ -250,14 +250,15 @@ export async function runCli(
   const beforeOffset = sepIdx >= 0 ? Number(initialRes.slice(0, sepIdx)) : 0;
   let rawSlice = sepIdx >= 0 ? initialRes.slice(sepIdx + 1) : initialRes;
 
-  const deadline = Date.now() + settleMs;
+  let deadline = Date.now() + settleMs;
+  const hardDeadline = Date.now() + Math.max(45_000, settleMs * 2);
   let stableCount = 0;
   let lastLen = rawSlice.length;
   let pagesSent = 0;
   const maxPages = 60;
 
   // Poll until prompt returns and stabilizes, handling --More-- pages along the way
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && Date.now() < hardDeadline) {
     if (endsWithMore(rawSlice) && pagesSent < maxPages) {
       pagesSent++;
       await bridge.sendAndWait(sendCliPagerKeyJs(device, 32, " "), { timeoutMs: 5_000 });
@@ -268,6 +269,8 @@ export async function runCli(
         lastLen = rawSlice.length;
         stableCount = 0;
       }
+      // Extend settle deadline as pagination makes forward progress
+      deadline = Math.min(hardDeadline, Math.max(deadline, Date.now() + 3_000));
       continue;
     }
 
@@ -289,6 +292,7 @@ export async function runCli(
         rawSlice = nextSlice;
         lastLen = rawSlice.length;
         stableCount = 0;
+        deadline = Math.min(hardDeadline, Math.max(deadline, Date.now() + 2_000));
       } else {
         rawSlice = nextSlice;
         if (detectPrompt(rawSlice)) {

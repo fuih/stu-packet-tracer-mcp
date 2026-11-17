@@ -30,12 +30,18 @@ describe("Bridge v1 protocol", () => {
     expect(pingRes.status).toBe(200);
     expect(await pingRes.text()).toBe("pong");
 
-    const statusRes = await fetch(`${baseUrl}/v1/status`);
-    expect(statusRes.status).toBe(200);
-    const status = (await statusRes.json()) as BridgeV1Status;
-    expect(status.protocol).toBe(1);
-    expect(status.connected).toBe(true);
-    expect(status.pending).toBe(0);
+    // Status checks alone must NOT mark Packet Tracer as connected
+    const statusBefore = (await (await fetch(`${baseUrl}/v1/status`)).json()) as BridgeV1Status;
+    expect(statusBefore.protocol).toBe(1);
+    expect(statusBefore.connected).toBe(false);
+    expect(statusBefore.pending).toBe(0);
+
+    // Polling /v1/next marks the extension as connected
+    const pollRes = await fetch(`${baseUrl}/v1/next?wait=100`);
+    expect(pollRes.status).toBe(204);
+    const statusAfter = (await (await fetch(`${baseUrl}/v1/status`)).json()) as BridgeV1Status;
+    expect(statusAfter.connected).toBe(true);
+    expect(isAllowedOrigin("this-sm:index.html")).toBe(true);
   });
 
   test("long-poll /v1/next returns within ~50ms when work arrives", async () => {

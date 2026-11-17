@@ -61,6 +61,7 @@ export function addressingDumpJs(): string {
         `var gw="";` +
         `try{gw=d.getDefaultGateway()||"";}catch(e){}` +
         `if(!gw){try{var p0=d.getPortAt(0);if(p0&&typeof p0.getDefaultGateway==="function")gw=p0.getDefaultGateway()||"";}catch(e){}}` +
+        `if(!gw&&typeof d.serializeToXml==="function"){try{var xml=String(d.serializeToXml()||"");var gm=xml.match(/<PORT_GATEWAY>([^<]+)<\\/PORT_GATEWAY>/)||xml.match(/<GATEWAY>([^<]+)<\\/GATEWAY>/);if(gm&&gm[1]&&gm[1]!=="0.0.0.0")gw=gm[1].trim();}catch(e){}}` +
         `out.push("DEV|"+d.getName()+"|"+m+"|"+gw);` +
         `var pc=d.getPortCount();` +
         `for(var j=0;j<pc;j++){` +

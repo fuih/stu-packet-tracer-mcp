@@ -15,6 +15,16 @@
 - [x] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, REPORTS, ARCHITECTURE, CHANGELOG, CONTRIBUTING, release workflow, standalone binary PNG test, RELEASE_CHECKLIST)
 
 ## Log
+### 2026-11-17 Live Packet Tracer 9.0.1 Smoke Test & Real-World Fixes
+- Packaged and ran our English Bridge v1 Script Module inside live Cisco Packet Tracer 9.0.1 against `/home/fuih/network/Workshop_Static_Routing.pkt`.
+- Caught and fixed 5 real-world PT 9 / Bun issues during live testing:
+  1. `src/bridge/http-bridge.ts`: moved `lastSeenAt` updates strictly to PT poll/result routes (`/v1/next`, `/v1/result`, `/next`, `/result`) so `/v1/status` never false-reports `connected: true`.
+  2. `src/bridge/http-bridge.ts`: set `idleTimeout: 120` on `Bun.serve()` and wired `req.signal` abort cleanup on `parkedWaiters` so Bun's default 10s idle timeout no longer aborts 25s `/v1/next` long-polls.
+  3. `extension/src/main.js`, `extension/src/index.html`, `src/bridge/http-bridge.ts`: used PT 9's `webViewManager.createWebView(..., "this-sm:index.html", ...)` and `this-sm:` asset/origin scheme so Custom Interfaces load cleanly without white-screen or 403.
+  4. `src/cli/engine.ts`: extended settle deadline on `--More--` pagination progress so multi-page `show running-config` on `Router-PT` completes cleanly through `end`.
+  5. `src/student/addressing.ts`: added `<PORT_GATEWAY>` extraction from `d.serializeToXml()` fallback so PT 9 PCs/Servers report accurate default gateways.
+- All 8 live smoke tests PASSED: Bridge v1 auto-reconnect (~1s), full `R1 show running-config`, consecutive `R2 show ip route`, 12/12 `pt_ping_matrix` (`PASS 4/4`), `pt_capture_cli` + `pt_capture_pc_command` PNG/SVG captures, 12-row `pt_addressing_table`, and full `pt_export_report` (`workshop-static-default-routing.docx`, `.html`, `.md`, `topology.png`, `ping-matrix.png`, 4 terminal PNG/SVGs).
+- Updated `docs/BUILD_EXTENSION.md` and `docs/dev/RELEASE_CHECKLIST.md` with exact PT 9 UI tabs, Security checkboxes, and live test results.
 ### 2026-11-17 Phase 9 Documentation, Packaging & Release Prep
 - Wrote student-first `README.md` with 5-minute quick start, first lab report walkthrough, terminal themes preview table, Teach Mode & academic integrity note, and upstream attribution.
 - Created/rewrote complete English documentation suite under `docs/`:
