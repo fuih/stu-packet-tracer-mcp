@@ -1,10 +1,10 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 0 (Completed) -> Phase 1 (Starting)
+## Current phase: 1 (Completed) -> Phase 2 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
-- [ ] P1 English + CI (Translation of all Spanish strings, check:english script, GitHub Actions CI)
+- [x] P1 English + CI (Translation of all Spanish strings, check:english script, GitHub Actions CI)
 - [ ] P2 Bridge v1 (Correlation IDs, long-poll /v1/next, origin check, drop late results)
 - [ ] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
 - [ ] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
@@ -15,6 +15,27 @@
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 1 English-only + CI Hygiene
+- Translated all remaining Spanish strings, comments, and IPC labels in `src/` and `tests/`:
+  - `src/index.ts`, `src/ipc/label.ts`, `src/ipc/generator.ts`, `src/canvas/layout.ts`, `src/canvas/snapshot.ts`
+  - `src/catalog/router-slots.ts`, `src/ipc/device-model.ts`, `src/ipc/dhcp-server.ts`, `src/ipc/files.ts`, `src/ipc/sim.ts`
+  - `src/recipes/cook.ts`, `src/recipes/switching/apply.ts`, `src/recipes/wireless/apply.ts`, `src/resources/index.ts`
+  - `src/sim/runner.ts`, `src/tools/add-module.ts`, `src/tools/create-link.ts`, `src/tools/delete-link.ts`
+  - `tests/layout.test.ts`, `tests/router-slots.test.ts`, `tests/switching-cli.test.ts`
+- Unified documentation:
+  - Replaced Spanish `README.md` with English version branded as `stu-packet-tracer-mcp`.
+  - Removed redundant `README.en.md`.
+- Implemented English-only CI enforcement:
+  - Created `scripts/check-english.ts` and `scripts/english-allowlist.txt`.
+  - Added `"check:english"` and `"ci"` scripts to `package.json`.
+  - Added `.editorconfig` (LF, 2 spaces, UTF-8, trim trailing whitespace).
+  - Updated `.github/workflows/ci.yml` matrix (ubuntu, windows, macos) with `bun run check:english`.
+- Verified:
+  - `bun run typecheck`: clean (0 errors)
+  - `bun run check:english`: passed (100% clean)
+  - `bun test`: **348 pass, 0 fail across 29 files**
+- Committed as `feat: english-only codebase and CI hygiene (phase 1)` (`commit 2dd16aa`).
+
 ### 2026-11-17 Phase 0 Bootstrap
 - Cloned upstream repository from `https://github.com/Jcorderop02/packet-tracer-mcp` into `/home/fuih/Projects/stu-packet-tracer-mcp`.
 - Preserved full git history for proper attribution. Renamed remote `origin` -> `upstream`.
