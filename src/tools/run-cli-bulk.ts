@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prepareDevice } from "../cli/engine.js";
 import { fetchDeviceModel } from "../ipc/device-model.js";
 import { bulkCliJs } from "../ipc/generator.js";
 import { errorResult, requireConnectedBridge, textResult } from "./helpers.js";
@@ -31,6 +32,9 @@ export const registerRunCliBulkTool: ToolModule = ({ bridge, server }) => {
     async ({ device, commands, tail_chars }) => {
       const blocked = requireConnectedBridge(bridge);
       if (blocked) return blocked;
+
+      // Ensure the device is ready (dismiss lingering initial dialog / More pager)
+      await prepareDevice(bridge, device);
 
       // Pre-process: model-aware encapsulation filter. Two families reject
       // the `switchport trunk encapsulation` subcommand:

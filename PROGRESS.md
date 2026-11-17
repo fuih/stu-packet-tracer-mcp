@@ -1,12 +1,12 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 2 (Completed) -> Phase 3 (Starting)
+## Current phase: 3 (Completed) -> Phase 4 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
 - [x] P1 English + CI (Translation of all Spanish strings, check:english script, GitHub Actions CI)
 - [x] P2 Bridge v1 (Correlation IDs, long-poll /v1/next, origin check, drop late results)
-- [ ] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
+- [x] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
 - [ ] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
 - [ ] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md)
 - [ ] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
@@ -15,6 +15,20 @@
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 3 Resilient CLI Engine (Fixes F3)
+- Implemented `src/cli/prompt.ts`:
+  - Cisco IOS prompt regex matching modes: `user` (`R1>`), `privileged` (`R1#`), `config` (`R1(config)#`), `config-if`, `config-subif`, `config-router`, `config-line`, `config-vlan`, `dhcp-config`, `cfg-voice`, `rommon`, and `dialog` (`[yes/no]:`, `[confirm]`).
+- Implemented `src/cli/clean.ts`:
+  - Strips ANSI escape sequences and IOS pager artifacts (`--More--`, `\x08` backspace-space sequences).
+  - Strips echoed command line and trailing prompt.
+  - Extracts Cisco syslog messages (`%LINK-5-CHANGED...`, `%SYS-5-CONFIG_I...`) into a separate `logs[]` array.
+- Implemented `src/cli/engine.ts`:
+  - `prepareDevice`: one-time per session per device preparation. Automatically dismisses `[yes/no]` initial configuration dialogs, lingering `--More--`, elevates to privileged mode (`enable`), and attempts `terminal length 0` (recording switches/routers that reject it).
+  - `runCli`: pre-checks tail for lingering `--More--` and clears with `q` before dispatching so initial characters are never eaten. Sends command with starting offset, polls server-side slices non-blocking, automatically advances mid-output `--More--` pagination with Space, and waits for stable prompt across 2 reads. Returns structured `{ device, command, mode_before, mode_after, prompt, output, logs, raw }`.
+  - `ensureMode`: guarantees device is in `privileged` or `config` mode before command execution.
+- Wired `src/tools/run-cli.ts`, `src/sim/runner.ts` (`runShowRunning`, `runShowRunningInclude`), and `src/tools/run-cli-bulk.ts` to use `src/cli/engine.ts`.
+- Created unit test suite `tests/cli-engine.test.ts` with real captured fixtures (`test/fixtures/cli/sample-running-config.txt`, `sample-more.txt`).
+- Verified via `bun run ci`: typecheck clean, English check clean, **367 pass, 0 fail across 31 files**.
 ### 2026-11-17 Phase 2 Bridge v1 (Fixes F1 & F2)
 - Created `src/bridge/protocol.ts` defining `CommandEnvelope`, `ResultEnvelope`, and `BridgeV1Status`.
 - Rebuilt `src/bridge/http-bridge.ts`:

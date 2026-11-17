@@ -20,7 +20,8 @@
  */
 
 import type { Bridge } from "../bridge/http-bridge.js";
-import { bulkCliJs, enterCommandJs } from "../ipc/generator.js";
+import { ensureMode, runCli } from "../cli/engine.js";
+import { enterCommandJs } from "../ipc/generator.js";
 import { jsStr } from "../ipc/escape.js";
 import { withLabel, truncateForLabel } from "../ipc/label.js";
 import { parsePing, parseTraceroute, type PingResult, type TracerouteResult } from "./parsers.js";
@@ -137,63 +138,41 @@ export async function runTraceroute(
 }
 
 /**
- * Bulk-execute `show running-config` (optionally filtered by a `| section`
- * pattern) on a single device. Uses bulkCliJs so it goes through the
- * privileged-exec gate on routers that need `enable` first.
- *
- * Pagination caveat: PT 9's switch IOS subset (2950/2960/3560/3650/IE-3xxx/
- * IE-9320) DOES NOT implement `terminal length 0` (verified 2026-05-01 via
- * `scripts/probe-multilayer-cli-coverage.ts` — every switch responds
- * `% Invalid input detected at '^' marker` to that command). PT routers do
- * accept it but the helper can't tell apart router vs switch from `device`
- * alone, so it does NOT preemptively try to disable pagination. Callers
- * that hit `--More--` (running > ~24 lines) MUST narrow the output with a
- * `| section <pattern>` filter or use `runShowRunningInclude` below; if
- * pagination kicks in, the bulk reply truncates at the first page AND
- * subsequent commands on this device are eaten by the paginator until it
- * times out.
- *
- * Source on missing verb: Cisco Community confirms PT only ships an IOS
- * subset and "if a command is not there, there is no workaround"
- * (https://community.cisco.com/t5/routing-and-sd-wan/how-to-stop-paging-of-commands-output-on-cisco-ios-devices/td-p/5080418).
+ * Execute `show running-config` (optionally filtered by a `| section`
+ * pattern) on a single device through the resilient CLI engine.
+ * Automatically enters privileged mode and advances `--More--` pagination
+ * on switches/routers that reject `terminal length 0`.
  */
 export async function runShowRunning(
   bridge: Bridge,
   device: string,
   section?: string,
-  tailChars = 6_000,
+  tailChars = 20_000,
 ): Promise<string> {
+  await ensureMode(bridge, device, "privileged");
   const cmd = section ? `show running-config | section ${section}` : "show running-config";
-  const block = ["enable", cmd].join("\n");
-  const raw = await bridge.sendAndWait(bulkCliJs(device, block, tailChars), { timeoutMs: 30_000 });
-  if (raw === null) throw new Error(`Bridge timeout running '${cmd}' on ${device}.`);
-  if (raw.startsWith("ERR:") || raw.startsWith("ERROR:")) {
-    throw new Error(`PT raised on '${cmd}' (${device}): ${raw}`);
+  const res = await runCli(bridge, device, cmd, { settleMs: 6_000, timeoutMs: 30_000 });
+  if (tailChars > 0 && res.output.length > tailChars) {
+    return res.output.slice(-tailChars);
   }
-  // bulkCliJs returns `BULK|<count>|<truncated>\n<output>`; strip the header.
-  const newlineIdx = raw.indexOf("\n");
-  return newlineIdx >= 0 ? raw.slice(newlineIdx + 1) : raw;
+  return res.output;
 }
 
 /**
- * `show running-config | include <pattern>` — alternative to
- * `runShowRunning` when the caller knows exactly which line(s) to look
- * for. The `| include` filter cuts output below PT 9's pagination
- * threshold even on switches that don't accept `terminal length 0`.
+ * `show running-config | include <pattern>` — filtered running-config
+ * lookup routed through the resilient CLI engine.
  */
 export async function runShowRunningInclude(
   bridge: Bridge,
   device: string,
   pattern: string,
-  tailChars = 4_000,
+  tailChars = 8_000,
 ): Promise<string> {
+  await ensureMode(bridge, device, "privileged");
   const cmd = `show running-config | include ${pattern}`;
-  const block = ["enable", cmd].join("\n");
-  const raw = await bridge.sendAndWait(bulkCliJs(device, block, tailChars), { timeoutMs: 30_000 });
-  if (raw === null) throw new Error(`Bridge timeout running '${cmd}' on ${device}.`);
-  if (raw.startsWith("ERR:") || raw.startsWith("ERROR:")) {
-    throw new Error(`PT raised on '${cmd}' (${device}): ${raw}`);
+  const res = await runCli(bridge, device, cmd, { settleMs: 4_000, timeoutMs: 30_000 });
+  if (tailChars > 0 && res.output.length > tailChars) {
+    return res.output.slice(-tailChars);
   }
-  const newlineIdx = raw.indexOf("\n");
-  return newlineIdx >= 0 ? raw.slice(newlineIdx + 1) : raw;
+  return res.output;
 }
