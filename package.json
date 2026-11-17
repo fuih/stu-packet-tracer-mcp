@@ -1,17 +1,17 @@
 {
-  "name": "packet-tracer-mcp",
-  "mcpName": "io.github.Jcorderop02/packet-tracer-mcp",
-  "version": "0.1.1",
-  "description": "Servidor MCP (Model Context Protocol) para Cisco Packet Tracer 9 — permite que un LLM como Claude o ChatGPT cree, edite y valide topologías de red en vivo (routers Cisco, switches, VLANs, OSPF, EIGRP, BGP, NAT, ACLs, VoIP, QoS, IPv6, wireless) a través del árbol IPC nativo del Script Engine de PT.",
-  "author": "Juan Cordero Pascual <jcorderop@hotmail.es>",
+  "name": "stu-packet-tracer-mcp",
+  "mcpName": "io.github.fuih/stu-packet-tracer-mcp",
+  "version": "0.1.0",
+  "description": "Student-focused Model Context Protocol (MCP) server for Cisco Packet Tracer 9 — design, build, inspect, and visualize network topologies, CLI terminals, and university lab reports in real-time.",
+  "author": "fuih",
   "license": "MIT",
-  "homepage": "https://github.com/Jcorderop02/packet-tracer-mcp#readme",
+  "homepage": "https://github.com/fuih/stu-packet-tracer-mcp#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jcorderop02/packet-tracer-mcp.git"
+    "url": "git+https://github.com/fuih/stu-packet-tracer-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/Jcorderop02/packet-tracer-mcp/issues"
+    "url": "https://github.com/fuih/stu-packet-tracer-mcp/issues"
   },
   "keywords": [
     "mcp",
@@ -52,7 +52,7 @@
   "type": "module",
   "module": "src/index.ts",
   "bin": {
-    "packet-tracer-mcp": "src/index.ts"
+    "stu-packet-tracer-mcp": "src/index.ts"
   },
   "files": [
     "src",
