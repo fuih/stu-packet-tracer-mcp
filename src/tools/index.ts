@@ -40,6 +40,9 @@ import { registerSimulationPlayTool } from "./simulation-play.js";
 import { registerSendPduTool } from "./send-pdu.js";
 import { registerClearCanvasTool } from "./clear-canvas.js";
 import { registerScreenshotTool } from "./screenshot.js";
+import { registerCaptureCliTool } from "./capture-cli.js";
+import { registerRenderTerminalTool } from "./render-terminal.js";
+import { registerCapturePcCommandTool } from "./capture-pc-command.js";
 import { registerSavePktTool } from "./save-pkt.js";
 import { registerOpenPktTool } from "./open-pkt.js";
 import { registerSavePktToBytesTool } from "./save-pkt-to-bytes.js";
@@ -120,6 +123,9 @@ export const ALL_TOOLS: readonly ToolModule[] = [
   registerSimulationPlayTool,
   registerSendPduTool,
   registerScreenshotTool,
+  registerCaptureCliTool,
+  registerRenderTerminalTool,
+  registerCapturePcCommandTool,
   registerClearCanvasTool,
   // .pkt persistence (Phase 9)
   registerSavePktTool,

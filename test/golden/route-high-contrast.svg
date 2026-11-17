@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="648" height="250" viewBox="0 0 648 250" role="img" aria-label="R1 - CLI">
+  <rect x="0.5" y="0.5" width="647" height="249" rx="0" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/>
+  <rect x="0" y="0" width="648" height="30" fill="#FFFFFF"/>
+  <line x1="0" y1="30" x2="648" y2="30" stroke="#000000" stroke-width="1.5"/>
+  <text x="14" y="20" font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="12.5" font-weight="700" fill="#000000">R1 - CLI</text>
+  <g font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="14" fill="#000000">
+    <text x="16" y="58" xml:space="preserve"><tspan font-weight="700">R1#</tspan> show ip route</text>
+    <text x="16" y="77" xml:space="preserve">Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP</text>
+    <text x="16" y="96" xml:space="preserve">Gateway of last resort is 10.0.0.2 to network 0.0.0.0</text>
+    <text x="16" y="115" xml:space="preserve"></text>
+    <text x="16" y="134" xml:space="preserve">     10.0.0.0/8 is variably subnetted, 2 subnets, 2 masks</text>
+    <text x="16" y="153" xml:space="preserve"><tspan font-weight="700">C</tspan>       10.0.0.0/30 is directly connected, Serial0/0/0</text>
+    <text x="16" y="172" xml:space="preserve"><tspan font-weight="700">L</tspan>       10.0.0.1/32 is directly connected, Serial0/0/0</text>
+    <text x="16" y="191" xml:space="preserve"><tspan font-weight="700">C</tspan>       192.168.1.0/24 is directly connected, GigabitEthernet0/0</text>
+    <text x="16" y="210" xml:space="preserve"><tspan font-weight="700">S*</tspan>   0.0.0.0/0 [1/0] via 10.0.0.2</text>
+    <text x="16" y="229" xml:space="preserve"><tspan font-weight="700">R1#</tspan></text>
+  </g>
+</svg>

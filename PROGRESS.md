@@ -1,6 +1,6 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 5 (Source Complete — Human `.pts` Packaging Pending) -> Phase 6 (Starting)
+## Current phase: 6 (Completed) -> Phase 7 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
@@ -9,12 +9,27 @@
 - [x] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
 - [x] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
 - [x] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md; human `.pts` packaging step documented)
-- [ ] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
+- [x] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
 - [ ] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
 - [ ] P8 Report export (pt_export_report -> MD, HTML, DOCX)
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 6 Terminal-Style CLI Screenshots (Fixes F7)
+- Bundled `DejaVuSansMono.ttf`, `DejaVuSansMono-Bold.ttf`, and Bitstream Vera/DejaVu `LICENSE` in `assets/fonts/` and added `assets` to `package.json` `files`.
+- Installed `@resvg/resvg-wasm` (`2.6.2`) and added `src/types/assets.d.ts` for Bun asset embedding (`with { type: "file" }`).
+- Created pure TypeScript zero-dependency terminal SVG renderer:
+  - `src/render/themes.ts`: 5 themes — `pt-classic` (Packet Tracer CLI tab chrome with `Physical | Config | CLI | Attributes`), `dark`, `putty`, `high-contrast` (print-ready), and `pc-cmd` (Windows Command Prompt).
+  - `src/render/highlight.ts`: priority-ordered Cisco IOS & PC CMD highlighting (prompts, route codes `C`/`L`/`S*`/`O`/`D`/`B`, `Reply from`, `Request timed out`, `% Invalid input`, `up`/`down` interface status).
+  - `src/render/terminal-svg.ts`: XML escaping, `xml:space="preserve"`, hard column wrapping with `↪` continuation indicator, right-margin callout annotations, dynamic content sizing.
+  - `src/render/png.ts`: lazy `@resvg/resvg-wasm` rasterizer at 2x zoom with bundled DejaVu Sans Mono fonts (`loadSystemFonts: false`) and graceful fallback to SVG-only if WASM init fails.
+  - `src/render/save.ts`: shared SVG/PNG writer supporting `svg`, `png`, and `both`.
+- Implemented and registered 3 new tools (60 total tools):
+  - `pt_capture_cli` (`src/tools/capture-cli.ts`): executes IOS commands via CLI engine and saves terminal SVGs/PNGs (per-command or combined).
+  - `pt_render_terminal` (`src/tools/render-terminal.ts`, offline): renders arbitrary terminal text into styled SVG/PNG.
+  - `pt_capture_pc_command` (`src/tools/capture-pc-command.ts`): runs `ping`/`ipconfig`/`tracert`/`arp -a` on Packet Tracer PCs/Servers and renders with `pc-cmd` theme.
+- Added 12 tests + 5 golden SVG snapshots (`test/golden/*.svg`, regenerable via `UPDATE_GOLDEN=1 bun test`) in `tests/render-terminal.test.ts` verifying all themes, XML escaping, wrapping, annotations, and real PNG magic bytes.
+- Regenerated `docs/TOOLS.md` and verified via `bun run ci`: typecheck clean, English check clean, `docs/TOOLS.md` clean, **388 pass, 0 fail across 33 files**.
 ### 2026-11-17 Phase 5 English Packet Tracer Extension Source (Fixes F6)
 - Authored clean English Script Module source under `extension/src/`:
   - `extension/src/main.js`: PT 9 Script Engine entry point (`runEnvelope` returning JSON `ResultEnvelope` via `evaluateJavaScriptAsync`, plus `runCode` and legacy `__mcpEval` compatibility).

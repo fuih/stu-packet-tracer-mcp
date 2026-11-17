@@ -2,12 +2,12 @@
 
 > **Auto-generated file.** Do not edit manually — run `bun run docs:tools` to regenerate.
 
-Total registered tools: **57**. All input schemas are strict (`additionalProperties: false`).
+Total registered tools: **60**. All input schemas are strict (`additionalProperties: false`).
 
 ## Categories
 
 - [Catalog & Status](#catalog-status) (5)
-- [Captures & Visuals](#captures-visuals) (1)
+- [Captures & Visuals](#captures-visuals) (4)
 - [CLI & Diagnostics](#cli-diagnostics) (4)
 - [Simulation & Testing](#simulation-testing) (5)
 - [Topology & Canvas](#topology-canvas) (13)
@@ -57,6 +57,50 @@ Validate a topology plan BEFORE touching the canvas. The LLM declares devices, l
 | `notes` | string | No | Free-form context: the brief, the user's intent, anything that would help a human reader confirm the plan. |
 
 ## Captures & Visuals
+
+### `pt_capture_cli`
+
+Run one or more Cisco IOS commands on a router or switch and save crisp terminal-style screenshots (SVG and/or 2x PNG) ready for university lab reports. Automatically clears pagination so full outputs are captured. Returns absolute file paths and the cleaned CLI text.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | Router or switch name (e.g. 'R1', 'SW1'). |
+| `commands` | string[] \| string | Yes | One or more IOS commands to execute and capture (array or newline-separated string). |
+| `theme` | `"pt-classic"` \| `"dark"` \| `"putty"` \| `"high-contrast"` \| `"pc-cmd"` | No | Terminal color/chrome theme: pt-classic (default), dark, putty, high-contrast, or pc-cmd. (default: `"pt-classic"`) |
+| `format` | `"svg"` \| `"png"` \| `"both"` | No | Output image format: svg, png, or both (default). (default: `"both"`) |
+| `output_path` | string | No | Optional output file path (single/combined) or directory (multiple commands). Relative paths resolve under STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
+| `include_prompt` | boolean | No | Include the `<prompt> <command>` header line inside the terminal image. (default: `true`) |
+| `combine` | boolean | No | Combine all commands into a single terminal image instead of one image per command. (default: `false`) |
+| `max_columns` | integer | No | Column width at which long output lines wrap. (default: `100`) |
+| `annotations` | object[] | No | Optional right-margin callout notes anchored to 1-based line numbers. |
+
+### `pt_capture_pc_command`
+
+Run a Command Prompt command (`ping`, `ipconfig`, `tracert`, `arp -a`) on a Packet Tracer PC, Laptop, or Server and save a Windows Command Prompt-style screenshot (SVG and/or 2x PNG). Use this to capture host connectivity and IP evidence for lab reports.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `device` | string | Yes | End-device name (PC, Laptop, or Server, e.g. 'PC0', 'A'). |
+| `command` | string | Yes | Command Prompt command (e.g. 'ping 192.168.2.10', 'ipconfig', 'ipconfig /all', 'tracert 10.0.0.2', 'arp -a'). |
+| `theme` | `"pc-cmd"` \| `"dark"` \| `"pt-classic"` \| `"putty"` \| `"high-contrast"` | No | Terminal theme (defaults to 'pc-cmd' for authentic Windows Command Prompt styling). (default: `"pc-cmd"`) |
+| `format` | `"svg"` \| `"png"` \| `"both"` | No | Output image format: svg, png, or both (default). (default: `"both"`) |
+| `output_path` | string | No | Optional output path. Relative paths resolve under STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
+| `timeout_ms` | integer | No | Optional timeout in milliseconds to wait for command completion. |
+
+### `pt_render_terminal` *(offline)*
+
+Render arbitrary CLI or Command Prompt text into a crisp terminal-window SVG and/or 2x PNG image offline (no live Packet Tracer connection needed). Use this to format saved outputs, PC ping transcripts, or custom annotated terminal snippets for reports.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `title` | string | Yes | Window title bar label (e.g. 'R1 - CLI', 'PC0 - Command Prompt'). |
+| `text` | string | Yes | Terminal output text to render (newlines preserved). |
+| `theme` | `"pt-classic"` \| `"dark"` \| `"putty"` \| `"high-contrast"` \| `"pc-cmd"` | No | Terminal color/chrome theme: pt-classic (default), dark, putty, high-contrast, or pc-cmd. (default: `"pt-classic"`) |
+| `format` | `"svg"` \| `"png"` \| `"both"` | No | Output image format: svg, png, or both (default). (default: `"both"`) |
+| `output_path` | string | No | Optional output path. Relative paths resolve under STU_PT_OUTPUT_DIR (default ./stu-pt-output/). |
+| `max_columns` | integer | No | Maximum character columns before wrapping long lines. (default: `100`) |
+| `show_window_chrome` | boolean | No | Whether to draw the terminal window title bar and chrome. (default: `true`) |
+| `annotations` | object[] | No | Optional right-margin callout notes anchored to 1-based line numbers. |
 
 ### `pt_screenshot`
 
