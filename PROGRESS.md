@@ -1,6 +1,6 @@
 # PROGRESS: stu-packet-tracer-mcp
 
-## Current phase: 4 (Completed) -> Phase 5 (Starting)
+## Current phase: 5 (Source Complete — Human `.pts` Packaging Pending) -> Phase 6 (Starting)
 
 ## Checklist
 - [x] P0 Bootstrap (Clone, rename, upstream attribution, baseline test suite)
@@ -8,13 +8,23 @@
 - [x] P2 Bridge v1 (Correlation IDs, long-poll /v1/next, origin check, drop late results)
 - [x] P3 CLI engine (Pagination --More--, eaten char fix, prompt/mode tracking)
 - [x] P4 Tool layer (Strict schemas, did-you-mean device resolver, clean docs)
-- [ ] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md)
+- [x] P5 Extension (English extension source in repo, docs/BUILD_EXTENSION.md; human `.pts` packaging step documented)
 - [ ] P6 CLI screenshots (Terminal SVG renderer, DejaVu Sans Mono, resvg-wasm PNG)
 - [ ] P7 Student features (Addressing table, ping matrix with ARP warm-up, lab checker, explain output, teach mode)
 - [ ] P8 Report export (pt_export_report -> MD, HTML, DOCX)
 - [ ] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, release workflow)
 
 ## Log
+### 2026-11-17 Phase 5 English Packet Tracer Extension Source (Fixes F6)
+- Authored clean English Script Module source under `extension/src/`:
+  - `extension/src/main.js`: PT 9 Script Engine entry point (`runEnvelope` returning JSON `ResultEnvelope` via `evaluateJavaScriptAsync`, plus `runCode` and legacy `__mcpEval` compatibility).
+  - `extension/src/index.html` & `extension/src/style.css`: offline dark-themed "Student MCP Bridge" UI with status dot, protocol pill, server URL, optional `X-Stu-Token` input, Start/Stop + Clear Log controls, last action indicator, and live scrolling log.
+  - `extension/src/bridge.js`: auto-detects Bridge Protocol v1 (`/v1/status` -> `/v1/next?wait=25000` + JSON `/v1/result`) with seamless fallback to legacy `/next` polling and exponential reconnect backoff (`1s -> 2s -> 5s -> 10s`) without error spam.
+  - `extension/src/manifest.json`: module metadata (`io.github.fuih.stu-mcp-bridge`).
+- Wrote click-by-click packaging guide in `docs/BUILD_EXTENSION.md` for the human (`fuih`) to package `extension/dist/stu-mcp-bridge.pts` inside PT 9.
+- Extended `scripts/check-english.ts` to scan `extension/src/` (`.js`, `.html`, `.css`, `.json`).
+- Updated `src/bridge/bootstrap.ts` branding comment; legacy `.pts` and paste-in fallback remain intact.
+- Verified via `bun run ci`: typecheck clean, English check clean (including `extension/src`), `docs/TOOLS.md` clean, **376 pass, 0 fail across 32 files**.
 ### 2026-11-17 Phase 4 Tool Layer Cleanup (Fixes F4 & F10)
 - Created `src/util/errors.ts`: `PtError` class and `ptError(code, message, hint?)` factory for actionable English error reporting.
 - Created `src/util/devices.ts`: Levenshtein distance helper + `resolveDeviceName` (exact -> case-insensitive -> Levenshtein <= 2 "Did you mean...?" suggestion) and `resolveCanvasDevice`.

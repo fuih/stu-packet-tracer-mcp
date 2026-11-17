@@ -1,0 +1,270 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #14171f;
+  color: #e4e7ef;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 12px;
+  gap: 10px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title-row h1 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.pill-muted {
+  background: #252b3b;
+  color: #9aa4bc;
+}
+
+.pill-v1 {
+  background: #143628;
+  color: #4ade80;
+}
+
+.pill-legacy {
+  background: #3b2f14;
+  color: #facc15;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dot-connected {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+.dot-waiting {
+  background: #eab308;
+}
+
+.dot-error {
+  background: #ef4444;
+}
+
+.dot-idle {
+  background: #64748b;
+}
+
+.status-text {
+  font-weight: 500;
+  color: #cbd5e1;
+}
+
+.config-card {
+  background: #1c212e;
+  border: 1px solid #2b3245;
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-row label {
+  width: 105px;
+  color: #9aa4bc;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.field-row input {
+  flex: 1;
+  background: #11141c;
+  border: 1px solid #30384e;
+  border-radius: 5px;
+  color: #f1f5f9;
+  padding: 5px 8px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace;
+  font-size: 12px;
+}
+
+.field-row input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.btn {
+  border: none;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.btn-secondary {
+  background: #2a3142;
+  color: #cbd5e1;
+}
+
+.btn-secondary:hover {
+  background: #363f54;
+}
+
+.counter {
+  margin-left: auto;
+  font-size: 12px;
+  color: #9aa4bc;
+}
+
+.last-cmd {
+  background: #1a202c;
+  border: 1px solid #283044;
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.last-cmd .label {
+  color: #9aa4bc;
+  flex-shrink: 0;
+}
+
+.last-cmd .value {
+  color: #93c5fd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #10131b;
+  border: 1px solid #262d3f;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #181d29;
+  border-bottom: 1px solid #262d3f;
+  font-size: 12px;
+  font-weight: 600;
+  color: #9aa4bc;
+}
+
+.backoff-note {
+  font-weight: 400;
+  color: #facc15;
+}
+
+.log-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-family: "DejaVu Sans Mono", Consolas, monospace;
+  font-size: 11.5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.log-entry {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  word-break: break-word;
+}
+
+.log-time {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.log-ok {
+  color: #4ade80;
+}
+
+.log-err {
+  color: #f87171;
+}
+
+.log-info {
+  color: #93c5fd;
+}
+
+.log-msg {
+  color: #e2e8f0;
+}

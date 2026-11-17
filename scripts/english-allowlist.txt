@@ -2,3 +2,4 @@
 # Add patterns, words, or file:line overrides that are legitimately non-English (e.g. proper names, upstream credits)
 Juan Cordero Pascual
 jcorderop02
+lang="en"

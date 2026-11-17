@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-const ROOTS_TO_CHECK = ["src", "tests"];
+const ROOTS_TO_CHECK = ["src", "tests", "extension/src"];
 const ALLOWLIST_PATH = join(import.meta.dir, "english-allowlist.txt");
 
 const SPANISH_ACCENT_REGEX = /[áéíóúñ¿¡ÁÉÍÓÚÑ]/;
@@ -30,7 +30,13 @@ function scanDir(dir: string): string[] {
     const stat = statSync(fullPath);
     if (stat.isDirectory()) {
       files.push(...scanDir(fullPath));
-    } else if (entry.endsWith(".ts") || entry.endsWith(".js") || entry.endsWith(".json")) {
+    } else if (
+      entry.endsWith(".ts") ||
+      entry.endsWith(".js") ||
+      entry.endsWith(".json") ||
+      entry.endsWith(".html") ||
+      entry.endsWith(".css")
+    ) {
       files.push(fullPath);
     }
   }

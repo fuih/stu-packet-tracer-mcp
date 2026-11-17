@@ -1,0 +1,14 @@
+{
+  "id": "io.github.fuih.stu-mcp-bridge",
+  "name": "Student MCP Bridge",
+  "version": "0.1.0",
+  "author": "fuih",
+  "description": "English Bridge Protocol v1 Script Module connecting Cisco Packet Tracer 9 to stu-packet-tracer-mcp.",
+  "entry": "main.js",
+  "files": [
+    "main.js",
+    "index.html",
+    "style.css",
+    "bridge.js"
+  ]
+}

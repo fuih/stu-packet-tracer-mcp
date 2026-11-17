@@ -12,7 +12,7 @@
 export function buildBootstrap(port: number = 54321, intervalMs: number = 500): string {
   const url = `http://127.0.0.1:${port}/next`;
   return (
-    `/* packet-tracer-mcp bridge */ ` +
+    `/* stu-packet-tracer-mcp bridge */ ` +
     `window.webview.evaluateJavaScriptAsync(` +
     `"setInterval(function(){` +
     `var x=new XMLHttpRequest();` +

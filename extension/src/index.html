@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student MCP Bridge</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="title-row">
+        <h1>Student MCP Bridge</h1>
+        <span id="protocol-badge" class="pill pill-muted">Protocol: --</span>
+      </div>
+      <div class="status-row">
+        <span id="status-dot" class="dot dot-idle"></span>
+        <span id="status-text" class="status-text">Waiting for server...</span>
+      </div>
+    </header>
+
+    <section class="config-card">
+      <div class="field-row">
+        <label for="server-url">Server URL</label>
+        <input id="server-url" type="text" value="http://127.0.0.1:54321" spellcheck="false" />
+      </div>
+      <div class="field-row">
+        <label for="bridge-token">Token (optional)</label>
+        <input id="bridge-token" type="password" placeholder="STU_PT_BRIDGE_TOKEN" spellcheck="false" />
+      </div>
+      <div class="controls">
+        <button id="toggle-btn" class="btn btn-primary" type="button">Stop</button>
+        <button id="clear-btn" class="btn btn-secondary" type="button">Clear Log</button>
+        <span class="counter">Commands: <strong id="cmd-count">0</strong></span>
+      </div>
+    </section>
+
+    <section class="last-cmd">
+      <span class="label">Last action:</span>
+      <span id="last-label" class="value">None yet</span>
+    </section>
+
+    <section class="log-panel">
+      <div class="log-header">
+        <span>Activity Log</span>
+        <span id="backoff-note" class="backoff-note"></span>
+      </div>
+      <div id="log-list" class="log-list" role="log" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <script src="bridge.js"></script>
+</body>
+</html>
