@@ -2,7 +2,7 @@
 
 Cisco Packet Tracer 9 stores Script Modules in an encrypted `.pts` container that can only be packaged from inside Packet Tracer's built-in Scripting interface. The full, clean English source code lives in `extension/src/`:
 
-- `extension/src/main.js` — Script Engine entry point (`openBridgeWindow`, `runEnvelope`, `runCode`, `__mcpEval`) using PT 9's `webViewManager.createWebView("Student MCP Bridge", "this-sm:index.html", 460, 560)`
+- `extension/src/main.js` — Script Engine entry point (`openBridgeWindow`, `runEnvelope`, `runCode`, `__mcpEval`) using PT 9's `webViewManager.createWebView("Student MCP Bridge", "this-sm:index.html", 780, 680)`
 - `extension/src/index.html` — Bridge UI markup ("Student MCP Bridge") referencing `this-sm:style.css` and `this-sm:bridge.js`
 - `extension/src/style.css` — Offline dark UI styles
 - `extension/src/bridge.js` — Protocol v1 long-poll client (`/v1/next`, `/v1/result`) with legacy fallback and exponential backoff

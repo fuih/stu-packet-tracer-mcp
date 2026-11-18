@@ -3,122 +3,278 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>stu-pt-bridge</title>
+  <title>stu-pt-bridge v0.1.0 — pt9 bridge monitor</title>
   <link rel="stylesheet" href="this-sm:style.css" />
 </head>
-<body>
-  <div class="tui">
-    <!-- Top 1-line TUI bar (abtop / btop style) -->
+<body data-state="waiting">
+  <div class="app-shell">
+    <!-- Top Header -->
     <header class="topbar">
       <div class="topbar-left">
-        <span class="brand-name">stu-pt-bridge</span>
-        <span class="brand-ver">v0.1.0</span>
-        <span class="sep">·</span>
-        <span class="brand-sub">pt9 bridge monitor</span>
+        <div class="logo-box" aria-hidden="true">
+          <svg class="icon-sm" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" x2="20" y1="19" y2="19"></line>
+          </svg>
+        </div>
+
+        <div class="brand-group">
+          <span class="brand-name">stu-pt-bridge</span>
+          <span class="brand-ver">v0.1.0</span>
+          <span class="brand-dot hide-sm">&bull;</span>
+          <span class="brand-sub hide-sm">pt9 bridge monitor</span>
+        </div>
+
+        <div id="header-status-pill" class="conn-pill conn-waiting">
+          <span id="header-status-dot" class="conn-dot"></span>
+          <span id="header-status-text" class="conn-label">Awaiting Bridge</span>
+        </div>
       </div>
+
       <div class="topbar-right">
-        <span id="clock-text" class="clock">00:00:00</span>
-        <span class="sep">·</span>
-        <span id="uptime-text" class="uptime">up 00:00</span>
-        <span id="protocol-badge" class="pill pill-muted">v--</span>
+        <div class="sys-time-group hide-md">
+          <span class="clock-item">
+            <svg class="icon-xs muted-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span id="clock-text" class="clock-val">00:00:00</span>
+          </span>
+          <span class="pipe-sep">|</span>
+          <span class="uptime-item">
+            <span class="muted-text">up</span>
+            <span id="uptime-text" class="accent-val">00:00:00</span>
+          </span>
+        </div>
+
+        <div class="theme-switcher" role="group" aria-label="Theme selector">
+          <button class="theme-pill is-active" type="button" data-theme-choice="claude">claude</button>
+          <button class="theme-pill" type="button" data-theme-choice="btop">btop</button>
+          <button class="theme-pill" type="button" data-theme-choice="abtop">abtop</button>
+        </div>
+
+        <span id="protocol-badge" class="proto-badge proto-muted">v--</span>
       </div>
     </header>
 
-    <!-- Panel 1: Hero + Live Telemetry (Claude Code x btop split box) -->
-    <fieldset class="panel panel-hero">
-      <legend><span class="panel-num">1</span>bridge</legend>
-      <div class="hero-grid">
-        <div class="hero-left">
-          <pre class="ascii-mascot" aria-hidden="true">  ┌─────────┐
-  │ ▀     ▀ │
-  │  ═════  │
-  └─┬─────┬─┘
-    │     │</pre>
-          <div class="hero-status">
-            <span id="status-dot" class="dot dot-idle"></span>
-            <span id="status-text" class="status-text">Waiting for server...</span>
+    <!-- Main Dashboard -->
+    <main class="dashboard">
+      <!-- Panel 1: Bridge Monitor Telemetry -->
+      <section class="panel" aria-label="Bridge Monitor Telemetry">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <span class="panel-num">1</span>
+            <h2 class="panel-title">bridge monitor telemetry</h2>
           </div>
-          <div id="backoff-note" class="backoff-note"></div>
-        </div>
-
-        <div class="hero-divider"></div>
-
-        <div class="hero-right">
-          <div class="metric-row">
-            <span class="metric-key">COMMANDS</span>
-            <span class="metric-val">
-              <strong id="cmd-count">0</strong>
-              <span class="metric-dim">ok:<span id="ok-count">0</span> err:<span id="err-count">0</span></span>
-            </span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-key">HEALTH</span>
-            <span class="metric-bar-wrap">
-              <span id="health-bar" class="ascii-bar">──────────</span>
-              <span id="health-pct" class="metric-pct">--%</span>
-            </span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-key">LATENCY</span>
-            <span class="metric-val">
-              <span id="last-ms">--ms</span>
-              <span class="metric-dim">avg:<span id="avg-ms">--ms</span></span>
-            </span>
-          </div>
-          <div class="spark-wrap">
-            <span class="metric-key">PULSE</span>
-            <span id="sparkline" class="sparkline">························</span>
-          </div>
-          <div class="last-row">
-            <span class="last-sigil">&gt;</span>
-            <span id="last-label" class="last-value">idle</span>
+          <div class="panel-meta">
+            <span>HOST: <strong id="meta-host" class="meta-val">127.0.0.1:54321</strong></span>
+            <span class="meta-dot"></span>
+            <span>CHANNEL: <strong id="meta-channel" class="meta-val">IPC/AUTO</strong></span>
           </div>
         </div>
-      </div>
-    </fieldset>
 
-    <!-- Panel 2: Compact CLI Flags & Controls -->
-    <fieldset class="panel panel-config">
-      <legend><span class="panel-num">2</span>config</legend>
-      <div class="config-grid">
-        <label class="flag-field">
-          <span class="flag-name">--url</span>
-          <input id="server-url" type="text" value="http://127.0.0.1:54321" spellcheck="false" />
-        </label>
-        <label class="flag-field">
-          <span class="flag-name">--token</span>
-          <input id="bridge-token" type="password" placeholder="optional STU_PT_BRIDGE_TOKEN" spellcheck="false" />
-        </label>
-      </div>
-      <div class="action-bar">
-        <button id="toggle-btn" class="tui-btn btn-danger" type="button">Stop</button>
-        <button id="clear-btn" class="tui-btn btn-secondary" type="button">Clear</button>
-        <button id="theme-btn" class="tui-btn btn-accent" type="button">Theme: claude</button>
-      </div>
-    </fieldset>
+        <div class="telemetry-grid">
+          <!-- Left: Mascot HUD & Retry Status -->
+          <div class="hud-card">
+            <span class="hud-corner tl"></span>
+            <span class="hud-corner tr"></span>
+            <span class="hud-corner bl"></span>
+            <span class="hud-corner br"></span>
 
-    <!-- Panel 3: Live Tabular Activity Stream (abtop / btop proc table) -->
-    <fieldset class="panel panel-stream">
-      <legend><span class="panel-num">3</span>stream <span class="legend-dim">(live ipc)</span></legend>
-      <div class="stream-cols">
-        <span class="col-time">TIME</span>
-        <span class="col-stat">STAT</span>
-        <span class="col-ms">LATENCY</span>
-        <span class="col-op">OPERATION</span>
-      </div>
-      <div id="log-list" class="log-list" role="log" aria-live="polite"></div>
-    </fieldset>
+            <div class="bot-shell" aria-hidden="true">
+              <div class="bot-antennas">
+                <span></span>
+                <span></span>
+              </div>
+              <div class="bot-screen">
+                <div class="bot-eyes">
+                  <span class="bot-eye"></span>
+                  <span class="bot-eye"></span>
+                </div>
+                <div class="bot-mouth"></div>
+              </div>
+              <div class="bot-legs">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
 
-    <!-- Bottom keybind footer (btop / abtop style) -->
-    <footer class="keybar">
-      <div class="keys-left">
-        <span class="key-item"><kbd>s</kbd> stop/start</span>
-        <span class="key-item"><kbd>c</kbd> clear</span>
-        <span class="key-item"><kbd>t</kbd> theme</span>
-        <span class="key-item"><kbd>u</kbd> url</span>
-      </div>
-      <div class="keys-right">
-        <span class="prompt-cursor">pt-bridge&gt; <span class="cursor-block">█</span></span>
+            <div class="hud-status-row">
+              <span id="status-dot" class="dot dot-waiting"></span>
+              <span id="status-text" class="hud-status-text">Waiting for client...</span>
+            </div>
+            <div id="backoff-note" class="backoff-note">connecting...</div>
+          </div>
+
+          <!-- Right: 4 Metric Cards + Pulse Telemetry -->
+          <div class="metrics-col">
+            <div class="metric-cards">
+              <div class="metric-card">
+                <span class="metric-label">COMMANDS TOTAL</span>
+                <div class="metric-body">
+                  <span id="cmd-count" class="metric-big">0</span>
+                  <span class="metric-sub">
+                    <span class="text-ok">ok:<span id="ok-count">0</span></span>
+                    <span class="text-err">err:<span id="err-count">0</span></span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="metric-card">
+                <div class="metric-label-row">
+                  <span class="metric-label">HEALTH</span>
+                  <span id="health-pct" class="metric-pct">--%</span>
+                </div>
+                <div id="health-segments" class="health-bar" aria-label="Bridge command health">
+                  <span class="health-seg"></span><span class="health-seg"></span>
+                  <span class="health-seg"></span><span class="health-seg"></span>
+                  <span class="health-seg"></span><span class="health-seg"></span>
+                  <span class="health-seg"></span><span class="health-seg"></span>
+                  <span class="health-seg"></span><span class="health-seg"></span>
+                </div>
+              </div>
+
+              <div class="metric-card">
+                <span class="metric-label">BRIDGE LATENCY</span>
+                <div class="metric-body">
+                  <span id="last-ms" class="metric-big muted-num">--</span>
+                  <span class="metric-unit">ms</span>
+                  <span class="metric-avg">(avg: <span id="avg-ms">--ms</span>)</span>
+                </div>
+              </div>
+
+              <div class="metric-card">
+                <span class="metric-label">CHANNEL STATE</span>
+                <div class="state-row">
+                  <span class="state-chevron">&gt;</span>
+                  <span id="last-label" class="state-value" title="idle">idle</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pulse Visualizer -->
+            <div class="pulse-card">
+              <div class="pulse-header">
+                <span class="pulse-title">
+                  <svg class="icon-xs accent-icon" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                  </svg>
+                  PULSE TELEMETRY
+                </span>
+                <span id="pulse-sub" class="pulse-sub">Realtime Handshake Buffer</span>
+              </div>
+              <div id="pulse-bars" class="pulse-bars" aria-hidden="true"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel 2: Bridge Configuration -->
+      <section class="panel" aria-label="Bridge Configuration">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <span class="panel-num">2</span>
+            <h2 class="panel-title">bridge configuration</h2>
+          </div>
+          <span class="panel-meta-tag">STU_CONFIG_V1</span>
+        </div>
+
+        <div class="config-body">
+          <div class="flag-row">
+            <label class="flag-label" for="server-url">
+              <span class="flag-prefix">--</span><span>url</span>
+            </label>
+            <div class="input-wrap">
+              <input id="server-url" class="text-input has-url-actions" type="text" value="http://127.0.0.1:54321" spellcheck="false" />
+              <div class="input-actions">
+                <span id="url-dot" class="inline-dot"></span>
+                <button id="copy-url-btn" class="inline-btn" type="button" title="Copy endpoint">copy</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="flag-row">
+            <label class="flag-label" for="bridge-token">
+              <span class="flag-prefix">--</span><span>token</span>
+            </label>
+            <div class="input-wrap">
+              <input id="bridge-token" class="text-input has-token-actions" type="password" placeholder="optional STU_PT_BRIDGE_TOKEN" spellcheck="false" />
+              <div class="input-actions">
+                <button id="reveal-token-btn" class="inline-btn" type="button">reveal</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="config-footer">
+            <div class="action-buttons">
+              <button id="toggle-btn" class="cta-btn cta-stop" type="button">
+                <span class="cta-square"></span>
+                <span id="toggle-label">Stop</span>
+              </button>
+              <button id="clear-btn" class="sec-btn" type="button">Clear</button>
+            </div>
+
+            <div class="active-theme-pill">
+              <span class="muted-text">Active Theme:</span>
+              <strong id="active-theme-name">claude</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panel 3: Stream (Live IPC Socket) -->
+      <section class="panel panel-stream" aria-label="Live IPC Stream">
+        <div class="panel-header stream-header">
+          <div class="panel-title-wrap">
+            <span class="panel-num">3</span>
+            <h2 class="panel-title">stream</h2>
+            <span class="panel-subtitle">(live ipc socket)</span>
+            <span id="stream-live-dot" class="live-dot"></span>
+          </div>
+
+          <div class="stream-controls">
+            <div class="filter-group" role="group" aria-label="Filter stream logs">
+              <button class="filter-btn is-active" type="button" data-filter="all">ALL</button>
+              <button class="filter-btn" type="button" data-filter="sys">SYS</button>
+              <button class="filter-btn" type="button" data-filter="ipc">IPC</button>
+              <button class="filter-btn filter-err" type="button" data-filter="err">ERR</button>
+            </div>
+            <button id="autoscroll-btn" class="autoscroll-btn is-on" type="button">
+              <span class="autoscroll-dot"></span>
+              <span id="autoscroll-label">autoscroll: ON</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="stream-cols">
+          <span class="col-time">TIME</span>
+          <span class="col-stat">STAT</span>
+          <span class="col-ms">LATENCY</span>
+          <span class="col-op">OPERATION / PAYLOAD</span>
+        </div>
+
+        <div id="log-list" class="log-list" data-stream-filter="all" role="log" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <!-- Bottom Status Bar -->
+    <footer class="bottom-bar">
+      <nav class="hotkeys" aria-label="Terminal Shortcuts">
+        <span class="hotkey"><kbd>s</kbd> <span>stop/start</span></span>
+        <span class="bullet">&bull;</span>
+        <span class="hotkey"><kbd>c</kbd> <span>clear</span></span>
+        <span class="bullet">&bull;</span>
+        <span class="hotkey"><kbd>t</kbd> <span>theme</span></span>
+        <span class="bullet">&bull;</span>
+        <span class="hotkey"><kbd>u</kbd> <span>url</span></span>
+        <span class="bullet hide-sm">&bull;</span>
+        <span class="hotkey hide-sm"><kbd>l</kbd> <span>logs</span></span>
+      </nav>
+
+      <div class="cli-prompt-box">
+        <span class="cli-prompt-label">pt-bridge&gt;</span>
+        <input id="cli-input" class="cli-input" type="text" placeholder="type command or :help" spellcheck="false" autocomplete="off" />
+        <span class="cli-caret" aria-hidden="true"></span>
       </div>
     </footer>
   </div>

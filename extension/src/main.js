@@ -29,7 +29,7 @@ function openBridgeWindow() {
   var uiUrl = "this-sm:index.html";
   try {
     if (typeof webViewManager !== "undefined" && webViewManager && typeof webViewManager.createWebView === "function") {
-      wv = webViewManager.createWebView("Student MCP Bridge", uiUrl, 460, 560);
+      wv = webViewManager.createWebView("Student MCP Bridge", uiUrl, 780, 680);
     } else if (
       typeof ipc !== "undefined" &&
       ipc &&
@@ -39,10 +39,10 @@ function openBridgeWindow() {
     ) {
       var mgr = ipc.appWindow().getWebViewManager();
       if (mgr && typeof mgr.createWebView === "function") {
-        wv = mgr.createWebView("Student MCP Bridge", uiUrl, 460, 560);
+        wv = mgr.createWebView("Student MCP Bridge", uiUrl, 780, 680);
       }
     } else if (typeof gui !== "undefined" && gui && typeof gui.createWebView === "function") {
-      wv = gui.createWebView("Student MCP Bridge", uiUrl, 460, 560);
+      wv = gui.createWebView("Student MCP Bridge", uiUrl, 780, 680);
     } else if (typeof window !== "undefined" && window.webview) {
       wv = window.webview;
     }

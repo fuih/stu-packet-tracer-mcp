@@ -1,10 +1,11 @@
 /**
- * Student MCP Bridge — TUI WebView controller (bridge.js)
+ * Student MCP Bridge — Cyber Telemetry TUI WebView Controller (bridge.js)
  *
  * Implements Bridge Protocol v1 (long-poll /v1/next + JSON /v1/result with
  * correlation IDs) with automatic fallback to legacy /next polling,
- * exponential reconnect backoff (1s -> 2s -> 5s -> 10s), live latency
- * sparklines, keyboard shortcuts, and 3 switchable TUI themes.
+ * exponential reconnect backoff (1s -> 2s -> 5s -> 10s), live telemetry cards,
+ * 24-bar pulse visualizer, filterable log stream, interactive CLI prompt,
+ * and 3 switchable TUI themes (claude | btop | abtop).
  */
 (function () {
   "use strict";
@@ -12,34 +13,50 @@
   var BACKOFF_STEPS_MS = [1000, 2000, 5000, 10000];
   var LONG_POLL_WAIT_MS = 25000;
   var LEGACY_POLL_MS = 500;
-  var MAX_LOG_ENTRIES = 200;
-  var SPARK_LEN = 24;
-  var SPARK_GLYPHS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+  var MAX_LOG_ENTRIES = 250;
+  var PULSE_LEN = 24;
   var THEMES = ["claude", "btop", "abtop"];
   var LABEL_RE = /^\s*\/\*\s*([^*][\s\S]*?)\s*\*\/\s*/;
 
+  // DOM references
   var serverUrlInput = document.getElementById("server-url");
   var tokenInput = document.getElementById("bridge-token");
+  var copyUrlBtn = document.getElementById("copy-url-btn");
+  var revealTokenBtn = document.getElementById("reveal-token-btn");
   var toggleBtn = document.getElementById("toggle-btn");
+  var toggleLabel = document.getElementById("toggle-label");
   var clearBtn = document.getElementById("clear-btn");
-  var themeBtn = document.getElementById("theme-btn");
+  var autoscrollBtn = document.getElementById("autoscroll-btn");
+  var autoscrollLabel = document.getElementById("autoscroll-label");
+  var cliInput = document.getElementById("cli-input");
+
+  var headerStatusPill = document.getElementById("header-status-pill");
+  var headerStatusText = document.getElementById("header-status-text");
   var statusDot = document.getElementById("status-dot");
   var statusText = document.getElementById("status-text");
+  var backoffNoteEl = document.getElementById("backoff-note");
   var protocolBadge = document.getElementById("protocol-badge");
-  var lastLabelEl = document.getElementById("last-label");
+  var metaHostEl = document.getElementById("meta-host");
+  var metaChannelEl = document.getElementById("meta-channel");
+  var activeThemeNameEl = document.getElementById("active-theme-name");
+
+  var clockEl = document.getElementById("clock-text");
+  var uptimeEl = document.getElementById("uptime-text");
   var cmdCountEl = document.getElementById("cmd-count");
   var okCountEl = document.getElementById("ok-count");
   var errCountEl = document.getElementById("err-count");
-  var healthBarEl = document.getElementById("health-bar");
+  var healthSegmentsEl = document.getElementById("health-segments");
   var healthPctEl = document.getElementById("health-pct");
   var lastMsEl = document.getElementById("last-ms");
   var avgMsEl = document.getElementById("avg-ms");
-  var sparklineEl = document.getElementById("sparkline");
-  var clockEl = document.getElementById("clock-text");
-  var uptimeEl = document.getElementById("uptime-text");
+  var lastLabelEl = document.getElementById("last-label");
+  var pulseBarsEl = document.getElementById("pulse-bars");
   var logListEl = document.getElementById("log-list");
-  var backoffNoteEl = document.getElementById("backoff-note");
 
+  var themeButtons = document.querySelectorAll("[data-theme-choice]");
+  var filterButtons = document.querySelectorAll("[data-filter]");
+
+  // Bridge & telemetry state
   var running = true;
   var activeXhr = null;
   var retryTimer = null;
@@ -49,8 +66,9 @@
   var okCount = 0;
   var errCount = 0;
   var totalLatencyMs = 0;
-  var latencySamples = [];
-  var themeIdx = 0;
+  var pulseSamples = [];
+  var themeName = "claude";
+  var autoScroll = true;
   var startedAt = Date.now();
   var pendingResolvers = {};
 
@@ -79,99 +97,148 @@
       var h = Math.floor(secs / 3600);
       var m = Math.floor((secs % 3600) / 60);
       var s = secs % 60;
-      uptimeEl.textContent = h > 0
-        ? "up " + pad2(h) + ":" + pad2(m) + ":" + pad2(s)
-        : "up " + pad2(m) + ":" + pad2(s);
+      uptimeEl.textContent = pad2(h) + ":" + pad2(m) + ":" + pad2(s);
     }
   }
 
-  function renderSparkline() {
-    if (!sparklineEl) return;
-    if (latencySamples.length === 0) {
-      sparklineEl.textContent = "························";
-      return;
+  function updateHostMeta() {
+    if (!metaHostEl) return;
+    var hostOnly = getBaseUrl().replace(/^https?:\/\//i, "");
+    metaHostEl.textContent = hostOnly || "127.0.0.1:54321";
+  }
+
+  function initPulseBars() {
+    if (!pulseBarsEl) return;
+    pulseBarsEl.innerHTML = "";
+    for (var i = 0; i < PULSE_LEN; i++) {
+      pulseSamples.push({ ms: 0, ok: true, active: false });
+      var bar = document.createElement("span");
+      bar.className = "pulse-bar";
+      bar.style.height = "4px";
+      pulseBarsEl.appendChild(bar);
     }
-    var maxVal = 20;
-    for (var i = 0; i < latencySamples.length; i++) {
-      if (latencySamples[i] > maxVal) maxVal = latencySamples[i];
+  }
+
+  function renderPulseBars() {
+    if (!pulseBarsEl) return;
+    var bars = pulseBarsEl.children;
+    var maxMs = 40;
+    var i;
+    for (i = 0; i < pulseSamples.length; i++) {
+      if (pulseSamples[i].ms > maxMs) maxMs = pulseSamples[i].ms;
     }
-    var out = "";
-    var padCount = Math.max(0, SPARK_LEN - latencySamples.length);
-    for (var p = 0; p < padCount; p++) out += "·";
-    for (var j = 0; j < latencySamples.length; j++) {
-      var ratio = Math.min(1, latencySamples[j] / maxVal);
-      var gIdx = Math.min(SPARK_GLYPHS.length - 1, Math.floor(ratio * SPARK_GLYPHS.length));
-      out += SPARK_GLYPHS[gIdx];
+    for (i = 0; i < bars.length; i++) {
+      var sample = pulseSamples[i];
+      var barEl = bars[i];
+      if (!sample || !sample.active) {
+        barEl.style.height = "4px";
+        barEl.className = "pulse-bar";
+      } else {
+        var ratio = Math.min(1, Math.max(0.15, sample.ms / maxMs));
+        var px = Math.round(4 + ratio * 16);
+        barEl.style.height = px + "px";
+        barEl.className = sample.ok ? "pulse-bar is-hot" : "pulse-bar is-err";
+      }
     }
-    sparklineEl.textContent = out;
+  }
+
+  function pushPulseSample(ms, ok) {
+    pulseSamples.shift();
+    pulseSamples.push({ ms: ms, ok: ok, active: true });
+    renderPulseBars();
   }
 
   function renderHealth() {
-    if (!healthBarEl || !healthPctEl) return;
+    if (!healthSegmentsEl || !healthPctEl) return;
+    var segs = healthSegmentsEl.children;
     if (commandCount === 0) {
-      healthBarEl.textContent = "──────────";
       healthPctEl.textContent = "--%";
+      for (var k = 0; k < segs.length; k++) {
+        segs[k].className = "health-seg";
+      }
       return;
     }
     var pct = Math.round((okCount / commandCount) * 100);
-    var filled = Math.round((pct / 100) * 10);
-    var bar = "";
-    for (var i = 0; i < 10; i++) bar += i < filled ? "█" : "░";
-    healthBarEl.textContent = bar;
+    var filled = Math.round((pct / 100) * segs.length);
+    var tone = pct >= 80 ? "is-ok" : pct >= 50 ? "is-warn" : "is-err";
     healthPctEl.textContent = pct + "%";
-  }
-
-  function formatDurationBar(ms) {
-    if (typeof ms !== "number" || isNaN(ms)) return "";
-    if (ms <= 2) return "▏";
-    if (ms <= 8) return "▎";
-    if (ms <= 25) return "▌";
-    if (ms <= 80) return "▊";
-    return "█";
+    for (var i = 0; i < segs.length; i++) {
+      segs[i].className = i < filled ? "health-seg " + tone : "health-seg";
+    }
   }
 
   function recordCommandMetrics(ok, elapsedMs) {
     commandCount++;
     if (ok) okCount++;
     else errCount++;
+
     if (cmdCountEl) cmdCountEl.textContent = String(commandCount);
     if (okCountEl) okCountEl.textContent = String(okCount);
     if (errCountEl) errCountEl.textContent = String(errCount);
 
     var ms = typeof elapsedMs === "number" && !isNaN(elapsedMs) ? Math.max(0, Math.round(elapsedMs)) : 0;
     totalLatencyMs += ms;
-    latencySamples.push(ms);
-    if (latencySamples.length > SPARK_LEN) latencySamples.shift();
 
-    if (lastMsEl) lastMsEl.textContent = ms + "ms";
-    if (avgMsEl) avgMsEl.textContent = Math.round(totalLatencyMs / commandCount) + "ms";
-    renderSparkline();
+    if (lastMsEl) {
+      lastMsEl.textContent = String(ms);
+      lastMsEl.className = "metric-big";
+    }
+    if (avgMsEl) {
+      avgMsEl.textContent = Math.round(totalLatencyMs / commandCount) + "ms";
+    }
+
+    pushPulseSample(ms, ok);
     renderHealth();
   }
 
+  function setLastLabel(label) {
+    if (!lastLabelEl) return;
+    lastLabelEl.textContent = label;
+    lastLabelEl.title = label;
+  }
+
+  /**
+   * Append row to Panel 3 stream.
+   * kind: "sys" | "ok" | "ipc" | "auth" | "err"
+   */
   function appendLog(kind, message, elapsedMs) {
+    if (!logListEl) return;
     var row = document.createElement("div");
-    row.className = "log-entry";
+    var cat = kind === "err" ? "err" : (kind === "ok" || kind === "ipc") ? "ipc" : "sys";
+    row.className = kind === "ok" || kind === "ipc" ? "log-row is-highlight" : "log-row";
+    row.setAttribute("data-cat", cat);
 
     var timeEl = document.createElement("span");
     timeEl.className = "log-time";
     timeEl.textContent = nowTime();
 
-    var tagEl = document.createElement("span");
-    tagEl.className = kind === "ok" ? "log-ok" : kind === "err" ? "log-err" : "log-info";
-    tagEl.textContent = kind === "ok" ? "OK" : kind === "err" ? "ERR" : "SYS";
+    var statWrap = document.createElement("span");
+    statWrap.className = "log-stat-wrap";
+    var badge = document.createElement("span");
+    var statLabel = "SYS";
+    var statClass = "stat-pill stat-sys";
+    if (kind === "ok") {
+      statLabel = "OK";
+      statClass = "stat-pill stat-ok";
+    } else if (kind === "ipc") {
+      statLabel = "IPC";
+      statClass = "stat-pill stat-ipc";
+    } else if (kind === "auth") {
+      statLabel = "AUTH";
+      statClass = "stat-pill stat-auth";
+    } else if (kind === "err") {
+      statLabel = "ERR";
+      statClass = "stat-pill stat-err";
+    }
+    badge.className = statClass;
+    badge.textContent = statLabel;
+    statWrap.appendChild(badge);
 
     var msEl = document.createElement("span");
     msEl.className = "log-ms";
-    if (typeof elapsedMs === "number") {
-      msEl.textContent = String(Math.round(elapsedMs)) + "ms";
-      var barSpan = document.createElement("span");
-      barSpan.className = "log-bar";
-      barSpan.textContent = formatDurationBar(elapsedMs);
-      msEl.appendChild(barSpan);
-    } else {
-      msEl.textContent = "--";
-    }
+    msEl.textContent = typeof elapsedMs === "number" && !isNaN(elapsedMs)
+      ? String(Math.round(elapsedMs)) + "ms"
+      : "--";
 
     var msgEl = document.createElement("span");
     msgEl.className = "log-msg";
@@ -179,7 +246,7 @@
     msgEl.title = message;
 
     row.appendChild(timeEl);
-    row.appendChild(tagEl);
+    row.appendChild(statWrap);
     row.appendChild(msEl);
     row.appendChild(msgEl);
     logListEl.appendChild(row);
@@ -187,24 +254,72 @@
     while (logListEl.children.length > MAX_LOG_ENTRIES) {
       logListEl.removeChild(logListEl.firstChild);
     }
-    logListEl.scrollTop = logListEl.scrollHeight;
+    if (autoScroll) {
+      logListEl.scrollTop = logListEl.scrollHeight;
+    }
   }
 
-  function setStatus(state, text) {
-    statusDot.className = "dot dot-" + state;
-    statusText.textContent = text;
+  function setStatus(state, hudText, pillText) {
+    document.body.setAttribute("data-state", state);
+    if (statusDot) statusDot.className = "dot dot-" + state;
+    if (statusText) statusText.textContent = hudText;
+
+    if (headerStatusPill) {
+      headerStatusPill.className = "conn-pill conn-" + state;
+    }
+    if (headerStatusText) {
+      headerStatusText.textContent = pillText || hudText;
+    }
   }
 
   function setProtocol(mode) {
     if (mode === "v1") {
-      protocolBadge.className = "pill pill-v1";
-      protocolBadge.textContent = "v1";
+      if (protocolBadge) {
+        protocolBadge.className = "proto-badge proto-v1";
+        protocolBadge.textContent = "V1";
+      }
+      if (metaChannelEl) metaChannelEl.textContent = "IPC/V1";
     } else if (mode === "legacy") {
-      protocolBadge.className = "pill pill-legacy";
-      protocolBadge.textContent = "legacy";
+      if (protocolBadge) {
+        protocolBadge.className = "proto-badge proto-legacy";
+        protocolBadge.textContent = "LEGACY";
+      }
+      if (metaChannelEl) metaChannelEl.textContent = "IPC/LEGACY";
     } else {
-      protocolBadge.className = "pill pill-muted";
-      protocolBadge.textContent = "v--";
+      if (protocolBadge) {
+        protocolBadge.className = "proto-badge";
+        protocolBadge.textContent = "V--";
+      }
+      if (metaChannelEl) metaChannelEl.textContent = "IPC/AUTO";
+    }
+  }
+
+  function setTheme(name) {
+    if (THEMES.indexOf(name) < 0) return;
+    themeName = name;
+    document.documentElement.setAttribute("data-theme", name);
+    if (activeThemeNameEl) activeThemeNameEl.textContent = name;
+    for (var i = 0; i < themeButtons.length; i++) {
+      var btn = themeButtons[i];
+      var choice = btn.getAttribute("data-theme-choice");
+      btn.className = choice === name ? "theme-pill is-active" : "theme-pill";
+    }
+  }
+
+  function cycleTheme() {
+    var idx = (THEMES.indexOf(themeName) + 1) % THEMES.length;
+    setTheme(THEMES[idx]);
+    appendLog("sys", "Switched theme to " + THEMES[idx]);
+  }
+
+  function setFilter(filterName) {
+    if (logListEl) logListEl.setAttribute("data-stream-filter", filterName);
+    for (var i = 0; i < filterButtons.length; i++) {
+      var btn = filterButtons[i];
+      var f = btn.getAttribute("data-filter");
+      var cls = f === "err" ? "filter-btn filter-err" : "filter-btn";
+      if (f === filterName) cls += " is-active";
+      btn.className = cls;
     }
   }
 
@@ -332,28 +447,29 @@
     if (backoffIndex < BACKOFF_STEPS_MS.length - 1) backoffIndex++;
 
     if (wasConnected) {
-      appendLog("info", "Disconnected (" + reason + ") - reconnecting...");
+      appendLog("ipc", "Disconnected (" + reason + ") -> retry scheduled in " + (delay / 1000) + "s");
       wasConnected = false;
     }
 
-    setStatus("waiting", "Waiting...");
-    backoffNoteEl.textContent = "retry " + (delay / 1000) + "s";
+    setProtocol("none");
+    setStatus("waiting", "Waiting for client...", "Awaiting Bridge");
+    if (backoffNoteEl) backoffNoteEl.textContent = "retry scheduled: " + (delay / 1000) + "s";
 
     retryTimer = setTimeout(function () {
       retryTimer = null;
-      backoffNoteEl.textContent = "";
+      if (backoffNoteEl) backoffNoteEl.textContent = "probing endpoint...";
       detectAndStart();
     }, delay);
   }
 
   function markConnected(mode) {
     backoffIndex = 0;
-    backoffNoteEl.textContent = "";
+    if (backoffNoteEl) backoffNoteEl.textContent = "long-poll heartbeat active";
     setProtocol(mode);
-    setStatus("connected", "Connected");
+    setStatus("connected", "Bridge connected", "Connected");
     if (!wasConnected) {
       wasConnected = true;
-      appendLog("info", "Connected to " + getBaseUrl() + " (" + mode + ")");
+      appendLog("sys", "Connected to " + getBaseUrl() + " (" + mode + ")");
     }
   }
 
@@ -369,7 +485,7 @@
       }
 
       if (status === 401 || status === 403) {
-        setStatus("error", "Rejected " + status);
+        setStatus("error", "Rejected " + status, "Rejected " + status);
         appendLog("err", "Server rejected request (HTTP " + status + "). Check token or origin.");
         scheduleReconnect("HTTP " + status);
         return;
@@ -393,7 +509,7 @@
         }
 
         var label = extractLabel(env);
-        lastLabelEl.textContent = label;
+        setLastLabel(label);
 
         executeInScriptEngine(env, function (resultPayload) {
           recordCommandMetrics(!!resultPayload.ok, resultPayload.elapsedMs);
@@ -425,7 +541,7 @@
       markConnected("legacy");
       if (status === 200 && text) {
         var label = extractLabel({ code: text });
-        lastLabelEl.textContent = label;
+        setLastLabel(label);
         recordCommandMetrics(true, 1);
         appendLog("ok", "[legacy] " + label, 1);
         try {
@@ -445,6 +561,7 @@
 
   function detectAndStart() {
     if (!running) return;
+    updateHostMeta();
     var statusUrl = getBaseUrl() + "/v1/status";
     xhrRequest("GET", statusUrl, null, 4000, function (err, status) {
       if (!running) return;
@@ -475,42 +592,191 @@
       activeXhr = null;
     }
     wasConnected = false;
-    backoffNoteEl.textContent = "";
-    setStatus("idle", "Stopped");
-    toggleBtn.textContent = "Start";
-    toggleBtn.className = "tui-btn btn-primary";
-    appendLog("info", "Bridge paused by user.");
+    setProtocol("none");
+    if (backoffNoteEl) backoffNoteEl.textContent = "bridge paused";
+    setStatus("idle", "Stopped", "Paused");
+    setLastLabel("paused");
+    if (toggleBtn) toggleBtn.className = "cta-btn cta-start";
+    if (toggleLabel) toggleLabel.textContent = "Start";
+    appendLog("sys", "Bridge paused by operator.");
   }
 
   function startBridge() {
     if (running) return;
     running = true;
     backoffIndex = 0;
-    toggleBtn.textContent = "Stop";
-    toggleBtn.className = "tui-btn btn-danger";
-    setStatus("waiting", "Connecting...");
-    appendLog("info", "Starting bridge against " + getBaseUrl() + "...");
+    if (toggleBtn) toggleBtn.className = "cta-btn cta-stop";
+    if (toggleLabel) toggleLabel.textContent = "Stop";
+    if (backoffNoteEl) backoffNoteEl.textContent = "connecting...";
+    setStatus("waiting", "Connecting...", "Awaiting Bridge");
+    setLastLabel("idle");
+    appendLog("sys", "Starting bridge against " + getBaseUrl() + "...");
     detectAndStart();
   }
 
-  function cycleTheme() {
-    themeIdx = (themeIdx + 1) % THEMES.length;
-    var name = THEMES[themeIdx];
-    document.documentElement.setAttribute("data-theme", name);
-    if (themeBtn) themeBtn.textContent = "Theme: " + name;
+  function clearLogs() {
+    if (logListEl) logListEl.innerHTML = "";
   }
 
-  toggleBtn.addEventListener("click", function () {
-    if (running) stopBridge();
-    else startBridge();
-  });
+  function copyEndpoint() {
+    var val = getBaseUrl();
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(val).then(function () {
+        if (copyUrlBtn) {
+          copyUrlBtn.textContent = "copied";
+          setTimeout(function () { copyUrlBtn.textContent = "copy"; }, 1200);
+        }
+      }, function () {
+        fallbackCopy(val);
+      });
+    } else {
+      fallbackCopy(val);
+    }
+  }
 
-  clearBtn.addEventListener("click", function () {
-    logListEl.innerHTML = "";
-  });
+  function fallbackCopy(text) {
+    if (!serverUrlInput) return;
+    serverUrlInput.focus();
+    serverUrlInput.select();
+    try {
+      document.execCommand("copy");
+      if (copyUrlBtn) {
+        copyUrlBtn.textContent = "copied";
+        setTimeout(function () { copyUrlBtn.textContent = "copy"; }, 1200);
+      }
+    } catch (e) {
+      appendLog("sys", "Endpoint: " + text);
+    }
+  }
 
-  if (themeBtn) {
-    themeBtn.addEventListener("click", cycleTheme);
+  function handleCliCommand(raw) {
+    var trimmed = (raw || "").trim();
+    if (!trimmed) return;
+    var cmd = trimmed.charAt(0) === ":" ? trimmed.slice(1).trim() : trimmed;
+    var parts = cmd.split(/\s+/);
+    var verb = (parts[0] || "").toLowerCase();
+    var arg = parts.slice(1).join(" ").trim();
+
+    if (verb === "help" || verb === "?") {
+      appendLog("sys", "Commands: start | stop | clear | theme [claude|btop|abtop] | filter [all|sys|ipc|err] | ping | status | url <endpoint>");
+    } else if (verb === "start") {
+      startBridge();
+    } else if (verb === "stop") {
+      stopBridge();
+    } else if (verb === "clear" || verb === "cls") {
+      clearLogs();
+    } else if (verb === "theme") {
+      if (arg && THEMES.indexOf(arg.toLowerCase()) >= 0) {
+        setTheme(arg.toLowerCase());
+        appendLog("sys", "Theme set to " + arg.toLowerCase());
+      } else {
+        cycleTheme();
+      }
+    } else if (verb === "filter") {
+      var f = arg.toLowerCase();
+      if (f === "all" || f === "sys" || f === "ipc" || f === "err") {
+        setFilter(f);
+        appendLog("sys", "Stream filter set to " + f.toUpperCase());
+      } else {
+        appendLog("err", "Unknown filter '" + arg + "'. Expected: all, sys, ipc, err");
+      }
+    } else if (verb === "status") {
+      appendLog(
+        "sys",
+        "State=" + (running ? (wasConnected ? "connected" : "waiting") : "stopped") +
+          " | cmds=" + commandCount +
+          " (ok=" + okCount + ", err=" + errCount + ")" +
+          " | endpoint=" + getBaseUrl()
+      );
+    } else if (verb === "ping") {
+      var pingStart = Date.now();
+      xhrRequest("GET", getBaseUrl() + "/v1/status", null, 3000, function (err, status) {
+        var rtt = Date.now() - pingStart;
+        if (err || status >= 400) {
+          appendLog("err", "Ping failed (" + (err ? err.message : "HTTP " + status) + ")", rtt);
+        } else {
+          appendLog("ok", "Ping /v1/status HTTP " + status + " ready", rtt);
+        }
+      });
+    } else if (verb === "url" && arg) {
+      serverUrlInput.value = arg;
+      updateHostMeta();
+      appendLog("sys", "Endpoint updated to " + getBaseUrl());
+      if (running) {
+        stopBridge();
+        startBridge();
+      }
+    } else if (verb === "token") {
+      tokenInput.value = arg === "clear" ? "" : arg;
+      appendLog("auth", arg === "clear" || !arg ? "Bridge token cleared." : "Bridge token updated.");
+    } else {
+      appendLog("err", "Unknown command '" + trimmed + "'. Type :help for options.");
+    }
+  }
+
+  // Event bindings
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", function () {
+      if (running) stopBridge();
+      else startBridge();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", clearLogs);
+  }
+
+  if (copyUrlBtn) {
+    copyUrlBtn.addEventListener("click", copyEndpoint);
+  }
+
+  if (revealTokenBtn && tokenInput) {
+    revealTokenBtn.addEventListener("click", function () {
+      var hidden = tokenInput.type === "password";
+      tokenInput.type = hidden ? "text" : "password";
+      revealTokenBtn.textContent = hidden ? "hide" : "reveal";
+    });
+  }
+
+  if (serverUrlInput) {
+    serverUrlInput.addEventListener("input", updateHostMeta);
+  }
+
+  if (autoscrollBtn) {
+    autoscrollBtn.addEventListener("click", function () {
+      autoScroll = !autoScroll;
+      autoscrollBtn.className = autoScroll ? "autoscroll-btn is-on" : "autoscroll-btn";
+      if (autoscrollLabel) autoscrollLabel.textContent = autoScroll ? "autoscroll: ON" : "autoscroll: OFF";
+      if (autoScroll && logListEl) logListEl.scrollTop = logListEl.scrollHeight;
+    });
+  }
+
+  for (var t = 0; t < themeButtons.length; t++) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        setTheme(btn.getAttribute("data-theme-choice"));
+      });
+    })(themeButtons[t]);
+  }
+
+  for (var fIdx = 0; fIdx < filterButtons.length; fIdx++) {
+    (function (btn) {
+      btn.addEventListener("click", function () {
+        setFilter(btn.getAttribute("data-filter"));
+      });
+    })(filterButtons[fIdx]);
+  }
+
+  if (cliInput) {
+    cliInput.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        handleCliCommand(cliInput.value);
+        cliInput.value = "";
+      } else if (ev.key === "Escape") {
+        cliInput.blur();
+      }
+    });
   }
 
   document.addEventListener("keydown", function (ev) {
@@ -524,23 +790,39 @@
       if (running) stopBridge();
       else startBridge();
     } else if (k === "c") {
-      logListEl.innerHTML = "";
+      clearLogs();
     } else if (k === "t") {
       cycleTheme();
     } else if (k === "u") {
       ev.preventDefault();
-      serverUrlInput.focus();
-      serverUrlInput.select();
+      if (serverUrlInput) {
+        serverUrlInput.focus();
+        serverUrlInput.select();
+      }
+    } else if (k === "l") {
+      ev.preventDefault();
+      if (logListEl) logListEl.focus();
+    } else if (k === "/" || k === ":") {
+      ev.preventDefault();
+      if (cliInput) {
+        cliInput.focus();
+        if (k === ":") cliInput.value = ":";
+      }
     }
   });
 
-  // Initialize TUI clock, sparkline, and auto-connect
+  // Boot initialization
   updateClock();
   setInterval(updateClock, 1000);
-  renderSparkline();
+  updateHostMeta();
+  initPulseBars();
+  renderPulseBars();
   renderHealth();
-  toggleBtn.textContent = "Stop";
-  toggleBtn.className = "tui-btn btn-danger";
-  appendLog("info", "stu-pt-bridge TUI initialized (themes: claude / btop / abtop).");
+  setTheme("claude");
+  setFilter("all");
+  setProtocol("none");
+  setStatus("waiting", "Waiting for client...", "Awaiting Bridge");
+  appendLog("sys", "stu-pt-bridge TUI initialized (themes: claude / btop / abtop).");
+  appendLog("auth", getToken() ? "STU_PT_BRIDGE_TOKEN loaded from field." : "STU_PT_BRIDGE_TOKEN unset — local loopback mode.");
   detectAndStart();
 })();
