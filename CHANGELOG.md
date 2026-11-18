@@ -31,11 +31,14 @@ Initial student-focused release — independent hard fork of `packet-tracer-mcp`
   - `pt_explain_output` (offline): plain-English explainer for `show ip route`, `show ip arp`, `show ip interface brief`, `show vlan brief`, and `show running-config`.
   - `pt_subnet_calc` (offline): IPv4 subnet calculator and largest-first VLSM allocation planner.
   - `pt_lab_template`: 10 built-in university networking labs (`examples/labs/*.json`).
+  - `pt_diagnose_faults`: deep lab fault detector (`hints`, `commands`, `autofix` modes) catching powered-off devices, shutdown interfaces, duplicate IPs, classful `/8` mask traps, missing or mismatched gateways, self-pointing static routes, and one-way routing.
+  - `pt_trace_path`: forward and return path analyzer pinpointing the exact hop and reason packets drop.
+  - `pt_break_lab`: deterministic troubleshooting challenge generator (`easy`, `medium`, `hard`) injecting 1–5 realistic lab faults for exam practice.
   - Teach Mode (`STU_PT_TEACH_MODE=1` / `dry_run: true`, off by default).
 - **Lab Report Export** (`src/report/`, `pt_export_report`):
-  - One-command export to Microsoft Word (`.docx` with embedded 2x PNGs and shaded tables), single-file print-ready HTML (`@media print`), and Markdown.
+  - One-command export to Microsoft Word (`.docx` with embedded 2x PNGs and shaded tables), single-file print-ready HTML (`@media print`), Markdown, and Before/After troubleshooting sections.
 - **Tool Layer & Quality Gates**:
-  - Strict Zod schemas (`additionalProperties: false`) enforced across all 67 tools.
+  - Strict Zod schemas (`additionalProperties: false`) enforced across all 70 tools.
   - Fuzzy device matching with Levenshtein `<= 2` "Did you mean ...?" hints.
   - Auto-generated `docs/TOOLS.md` verified by `bun run check:tools`.
   - 100% English enforcement (`bun run check:english`) across source, tests, extension, and docs.

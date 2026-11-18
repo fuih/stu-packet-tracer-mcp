@@ -2,12 +2,12 @@
 
 > **Auto-generated file.** Do not edit manually — run `bun run docs:tools` to regenerate.
 
-Total registered tools: **67**. All input schemas are strict (`additionalProperties: false`).
+Total registered tools: **70**. All input schemas are strict (`additionalProperties: false`).
 
 ## Categories
 
 - [Catalog & Status](#catalog-status) (5)
-- [Student Tools](#student-tools) (6)
+- [Student Tools](#student-tools) (9)
 - [Captures & Visuals](#captures-visuals) (4)
 - [Reports](#reports) (1)
 - [CLI & Diagnostics](#cli-diagnostics) (4)
@@ -70,6 +70,18 @@ Build the classic Device / Interface / IP Address / Subnet Mask / Default Gatewa
 | `include_unassigned` | boolean | No | Include ports that do not have an IPv4 address assigned. (default: `false`) |
 | `format` | `"markdown"` \| `"csv"` \| `"json"` | No | Preferred text output format (structuredContent always contains rows, markdown, and csv). (default: `"markdown"`) |
 
+### `pt_break_lab`
+
+Turn any working Packet Tracer topology into a hands-on troubleshooting challenge by injecting 1–5 realistic networking faults (shutdown links, wrong gateways, classful /8 masks, broken static routes, WAN mismatches). Returns spoiler-free trouble tickets for student practice or CCNA exam prep.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `count` | integer | No | Number of realistic faults to inject (1 to 5). (default: `2`) |
+| `difficulty` | `"easy"` \| `"medium"` \| `"hard"` | No | Difficulty level: 'easy' (shutdown port, wrong gateway), 'medium' (classful mask trap, wrong LAN subnet), or 'hard' (self next-hop static route, WAN mask mismatch). (default: `"medium"`) |
+| `reveal_solutions` | boolean | No | Set true to include the answer key and exact restore commands; defaults to false so students get spoiler-free practice tickets. (default: `false`) |
+| `dry_run` | boolean | No | Preview planned fault tickets without modifying Packet Tracer. (default: `false`) |
+| `seed` | integer | No | Optional random seed for repeatable challenge generation. |
+
 ### `pt_check_lab`
 
 Verify a list of networking lab objectives (connectivity pings, routing table entries, up/up interfaces, running-config directives, and VLANs) against the live Packet Tracer topology. Returns a pass/fail scorecard with exact CLI evidence so students can self-check before submitting.
@@ -77,6 +89,16 @@ Verify a list of networking lab objectives (connectivity pings, routing table en
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `objectives` | object \| object \| object \| object \| object[] | Yes | List of lab grading objectives to verify (ping, route, interface_up, config_contains, vlan_exists). |
+
+### `pt_diagnose_faults`
+
+Inspect a live Packet Tracer lab to detect common student networking mistakes (powered-off devices, shutdown interfaces, duplicate IPs, classful /8 mask traps, missing or wrong PC gateways, WAN subnet mismatches, self-pointing static routes, and one-way return routes). Supports study `hints`, full `commands`, or live `autofix`.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `mode` | `"hints"` \| `"commands"` \| `"autofix"` | No | 'hints' gives study clues without spoiling commands; 'commands' explains root causes and exact fixes (default); 'autofix' applies deterministic fixes live. (default: `"commands"`) |
+| `devices` | string[] | No | Optional subset of device names to diagnose (defaults to all devices in the topology). |
+| `deep_cli_check` | boolean | No | Also inspect router CLI tables (`show ip interface brief`, `show ip route`, `show running-config`) to catch shutdown ports, self next-hops, and one-way routing. (default: `true`) |
 
 ### `pt_explain_output` *(offline)*
 
@@ -121,6 +143,15 @@ Calculate IPv4 subnet details (network, broadcast, first/last usable host, subne
 | `cidr` | string | Yes | IPv4 network in CIDR notation (e.g. '192.168.10.0/24') or plain IPv4 address when `mask` is supplied. |
 | `mask` | string | No | Optional dotted-quad subnet mask (e.g. '255.255.255.192') if `cidr` omits `/prefix`. |
 | `vlsm_requirements` | object[] | No | Optional list of subnets with required host counts to compute a non-overlapping VLSM addressing plan. |
+
+### `pt_trace_path`
+
+Simulate and trace BOTH the forward path (`from -> to`) and return path (`to -> from`) across L2 switches, PC gateways/masks, router interface states, and routing tables (`show ip route`). Answers 'Why can't A ping B?' by pinpointing the exact failing hop (e.g. missing return route or classful mask trap).
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `from` | string | Yes | Source device name (e.g. 'PC-A', 'A'). |
+| `to` | string | Yes | Destination device name (e.g. 'PC-B', 'DC-SRV'). |
 
 ## Captures & Visuals
 

@@ -15,6 +15,13 @@
 - [x] P9 Docs & release prep (README, QUICKSTART, CLIENTS, TROUBLESHOOTING, REPORTS, ARCHITECTURE, CHANGELOG, CONTRIBUTING, release workflow, standalone binary PNG test, RELEASE_CHECKLIST)
 
 ## Log
+### 2026-11-18 Student Troubleshooting Suite (70 Total Tools)
+- Added 3 new student troubleshooting tools and Before/After report automation:
+  - `pt_diagnose_faults` (`src/student/fault-diagnose.ts`, `src/tools/diagnose-faults.ts`): detects powered-off devices, `administratively down` interfaces, duplicate IPs, WAN peer subnet mismatches, classful `/8` mask traps, missing/wrong PC gateways, self-pointing static routes, and one-way routing across routers. Supports `hints` (no spoilers), `commands`, and `autofix` modes.
+  - `pt_trace_path` (`src/student/trace-path.ts`, `src/tools/trace-path.ts`): traces forward and return paths hop-by-hop across L2 switches and L3 router routing tables to pinpoint asymmetric return drops, missing gateways, and shutdown links.
+  - `pt_break_lab` (`src/student/break-lab.ts`, `src/tools/break-lab.ts`): deterministic seeded troubleshooting challenge generator (`easy`/`medium`/`hard`, 1–5 tickets, optional `reveal_solutions` & `dry_run`).
+  - Extended `pt_export_report` (`src/report/model.ts`, `src/report/collect.ts`, `src/tools/export-report.ts`) with `troubleshooting` Before/After steps (before capture -> live IOS/PC fix -> after capture).
+- Registered all 3 tools in `src/tools/index.ts` (70 total tools), updated `README.md`, `CHANGELOG.md`, and `docs/TOOLS.md`, added 6 offline unit tests in `tests/fault-troubleshooting.test.ts`, and verified `bun run ci` (**411 pass, 0 fail**).
 ### 2026-11-17 Live Packet Tracer 9.0.1 Smoke Test & Real-World Fixes
 - Packaged and ran our English Bridge v1 Script Module inside live Cisco Packet Tracer 9.0.1 against `/home/fuih/network/Workshop_Static_Routing.pkt`.
 - Caught and fixed 5 real-world PT 9 / Bun issues during live testing:

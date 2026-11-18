@@ -11,6 +11,31 @@ import { defineTool } from "./define.js";
 
 const ThemeEnum = z.enum(["pt-classic", "dark", "putty", "high-contrast", "pc-cmd"]);
 
+const TroubleshootingCaptureSchema = z.object({
+  device: z.string().min(1).describe("Device name for screenshot capture."),
+  command: z.string().min(1).describe("Command to run and capture."),
+  kind: z.enum(["ios", "pc"]).default("ios").describe("Command environment: 'ios' (router/switch) or 'pc' (Command Prompt)."),
+  theme: ThemeEnum.optional().describe("Optional override theme."),
+}).strict();
+
+const TroubleshootingStepSchema = z.object({
+  fault: z.string().min(1).describe("Description of the fault or symptom observed."),
+  root_cause: z.string().optional().describe("Explanation of why the fault occurred."),
+  before_capture: TroubleshootingCaptureSchema.optional().describe("Capture taken BEFORE applying the fix to document the broken state."),
+  fix_cli: z.object({
+    device: z.string().min(1).describe("Router or switch name to configure."),
+    commands: z.array(z.string().min(1)).min(1).describe("IOS CLI commands applied to fix the fault."),
+  }).strict().optional().describe("Optional IOS CLI commands applied between Before and After captures."),
+  fix_pc: z.object({
+    device: z.string().min(1).describe("PC, Laptop, or Server name to update."),
+    port: z.string().default("FastEthernet0").describe("Interface name (default: FastEthernet0)."),
+    ip: z.string().min(1).describe("Corrected IPv4 address."),
+    mask: z.string().min(1).describe("Corrected subnet mask."),
+    gateway: z.string().optional().describe("Corrected default gateway."),
+  }).strict().optional().describe("Optional PC IP/Mask/Gateway fix applied between Before and After captures."),
+  after_capture: TroubleshootingCaptureSchema.optional().describe("Capture taken AFTER applying the fix to prove resolution."),
+}).strict();
+
 const SectionSchema = z.object({
   heading: z.string().min(1).describe("Section heading (e.g. '6. Verify Routing Tables')."),
   text: z.string().optional().describe("Answer or explanation text (basic Markdown supported)."),
@@ -28,6 +53,8 @@ const SectionSchema = z.object({
       theme: ThemeEnum.optional().describe("Optional override theme (defaults to 'pc-cmd')."),
     }).strict(),
   ).optional().describe("End-host Command Prompt captures to include under this section."),
+  troubleshooting: z.array(TroubleshootingStepSchema).optional()
+    .describe("Optional Before/After fault-fix troubleshooting steps capturing the broken state, applying the fix, and verifying recovery."),
 }).strict();
 
 const InputSchema = z.object({

@@ -57,6 +57,34 @@ export interface LabReport {
   readonly savedPktPath?: string;
 }
 
+export interface ReportTroubleshootingStep {
+  readonly fault: string;
+  readonly root_cause?: string;
+  readonly before_capture?: {
+    readonly device: string;
+    readonly command: string;
+    readonly kind?: "ios" | "pc";
+    readonly theme?: ThemeName;
+  };
+  readonly fix_cli?: {
+    readonly device: string;
+    readonly commands: readonly string[];
+  };
+  readonly fix_pc?: {
+    readonly device: string;
+    readonly port?: string;
+    readonly ip: string;
+    readonly mask: string;
+    readonly gateway?: string;
+  };
+  readonly after_capture?: {
+    readonly device: string;
+    readonly command: string;
+    readonly kind?: "ios" | "pc";
+    readonly theme?: ThemeName;
+  };
+}
+
 export interface ReportSectionInput {
   readonly heading: string;
   readonly text?: string;
@@ -70,4 +98,5 @@ export interface ReportSectionInput {
     readonly command: string;
     readonly theme?: ThemeName;
   }>;
+  readonly troubleshooting?: readonly ReportTroubleshootingStep[];
 }

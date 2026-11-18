@@ -49,6 +49,9 @@ import { registerCheckLabTool } from "./check-lab.js";
 import { registerExplainOutputTool } from "./explain-output.js";
 import { registerSubnetCalcTool } from "./subnet-calc.js";
 import { registerLabTemplateTool } from "./lab-template.js";
+import { registerDiagnoseFaultsTool } from "./diagnose-faults.js";
+import { registerTracePathTool } from "./trace-path.js";
+import { registerBreakLabTool } from "./break-lab.js";
 import { registerExportReportTool } from "./export-report.js";
 import { registerSavePktTool } from "./save-pkt.js";
 import { registerOpenPktTool } from "./open-pkt.js";
@@ -133,13 +136,16 @@ export const ALL_TOOLS: readonly ToolModule[] = [
   registerCaptureCliTool,
   registerRenderTerminalTool,
   registerCapturePcCommandTool,
-  // Student tools (Phase 7)
+  // Student tools (Phase 7 + Troubleshooting suite)
   registerAddressingTableTool,
   registerPingMatrixTool,
   registerCheckLabTool,
   registerExplainOutputTool,
   registerSubnetCalcTool,
   registerLabTemplateTool,
+  registerDiagnoseFaultsTool,
+  registerTracePathTool,
+  registerBreakLabTool,
   // Reports (Phase 8)
   registerExportReportTool,
   registerClearCanvasTool,
