@@ -285,9 +285,10 @@ export function enterCommandJs(deviceName: string, command: string, _mode = ""):
 const SAFE_BOOT_DISMISS_JS =
   `var __out=String(cl.getOutput()||"");` +
   `var __tail=__out.substring(Math.max(0,__out.length-350)).replace(/\\s+$/,"");` +
+  `var __prompt=typeof cl.getPrompt==="function"?String(cl.getPrompt()||"").replace(/\\s+$/,""):"";` +
   `if(/\\[yes\\/no\\]:?$/i.test(__tail)){` +
     `cl.enterCommand("no");cl.enterCommand("");` +
-  `}else if(/Press RETURN to get started!?$/i.test(__tail)){` +
+  `}else if(/Press RETURN to get started!?$/i.test(__tail)||!__prompt){` +
     `cl.enterCommand("");` +
   `}`;
 

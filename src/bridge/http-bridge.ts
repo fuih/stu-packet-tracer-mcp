@@ -366,6 +366,7 @@ export class Bridge {
         const timer = setTimeout(() => {
           if (settled) return;
           settled = true;
+          this.lastSeenAt = Date.now();
           cleanup();
           resolve(new Response(null, { status: 204, headers: this.jsonHeaders() }));
         }, waitMs);
@@ -373,6 +374,7 @@ export class Bridge {
         const onReady = (cmd: CommandEnvelope | null) => {
           if (settled) return;
           settled = true;
+          this.lastSeenAt = Date.now();
           cleanup();
           if (cmd) {
             resolve(new Response(JSON.stringify({ ...cmd, agent: this.agentName }), { headers: this.jsonHeaders() }));

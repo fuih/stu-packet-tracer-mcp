@@ -120,11 +120,40 @@ function classfulPrefixOf(ip: string): number {
 }
 
 /**
+ * Gather all IP-bearing interfaces of a router (physical ports from snapshot plus
+ * virtual subinterfaces like `GigabitEthernet0/0.10` from `addressingRows`).
+ */
+export function getRouterPortInventory(
+  router: DeviceObservation,
+  addressingRows: readonly AddressingRow[] = [],
+): PortObservation[] {
+  const seen = new Set(router.ports.map(p => p.name.toLowerCase()));
+  const merged: PortObservation[] = [...router.ports];
+
+  for (const row of addressingRows) {
+    if (row.device !== router.name) continue;
+    if (seen.has(row.interface.toLowerCase())) continue;
+    seen.add(row.interface.toLowerCase());
+    merged.push({
+      name: row.interface,
+      ip: row.ip,
+      mask: row.mask,
+      linked: router.ports.some(p =>
+        row.interface.toLowerCase().startsWith(`${p.name.toLowerCase()}.`) && p.linked
+      ),
+    });
+  }
+  return merged;
+}
+
+/**
  * Find the gateway router interface(s) reachable across L2 switches/hubs from a starting device.
+ * Also includes virtual Router-on-a-Stick subinterfaces attached to a reachable physical parent port.
  */
 export function findReachableRouterInterfaces(
   snapshot: CanvasSnapshot,
   startDeviceName: string,
+  addressingRows: readonly AddressingRow[] = [],
 ): Array<{ readonly router: DeviceObservation; readonly port: PortObservation }> {
   const byName = new Map(snapshot.devices.map(d => [d.name, d]));
   const adj = new Map<string, Array<{ neighbor: string; neighborPort: string }>>();
@@ -152,11 +181,16 @@ export function findReachableRouterInterfaces(
       if (!target) continue;
 
       if (isRouterDevice(target)) {
-        const port = target.ports.find(p => p.name === edge.neighborPort);
-        const key = `${target.name}:${edge.neighborPort}`;
-        if (port && !seenKey.has(key)) {
-          seenKey.add(key);
-          results.push({ router: target, port });
+        const allPorts = getRouterPortInventory(target, addressingRows);
+        const parentLower = edge.neighborPort.toLowerCase();
+        for (const p of allPorts) {
+          const pLower = p.name.toLowerCase();
+          if (pLower !== parentLower && !pLower.startsWith(`${parentLower}.`)) continue;
+          const key = `${target.name}:${p.name}`;
+          if (!seenKey.has(key)) {
+            seenKey.add(key);
+            results.push({ router: target, port: p });
+          }
         }
         continue;
       }
@@ -457,8 +491,21 @@ export function analyzeLabFaults(state: DiagnoseInputState): LabFault[] {
     if (wiredPorts.length === 0) continue;
 
     const pcRows = (rowsByDev.get(dev.name) ?? []).filter(r => isValidIpv4(r.ip));
-    const reachableRouters = findReachableRouterInterfaces(snapshot, dev.name);
-    const lanGateway = reachableRouters.find(r => isValidIpv4(r.port.ip) && maskToPrefix(r.port.mask) !== null);
+    const reachableRouters = findReachableRouterInterfaces(snapshot, dev.name, addressingRows);
+    const validGateways = reachableRouters.filter(r => isValidIpv4(r.port.ip) && maskToPrefix(r.port.mask) !== null);
+    const primaryRow = pcRows[0];
+    // For Router-on-a-Stick / multi-VLAN trunks, prefer the reachable subinterface matching the host IP or gateway subnet.
+    const lanGateway =
+      (primaryRow
+        ? validGateways.find(r => {
+            const pPref = maskToPrefix(r.port.mask);
+            if (pPref === null) return false;
+            const pNet = parseCidr(`${r.port.ip}/${pPref}`);
+            return isIpInSubnet(primaryRow.ip, pNet.network, pPref);
+          }) ??
+          validGateways.find(r => r.port.ip === primaryRow.gateway)
+        : undefined) ??
+      validGateways[0];
 
     if (pcRows.length === 0) {
       const firstPort = wiredPorts[0]!;

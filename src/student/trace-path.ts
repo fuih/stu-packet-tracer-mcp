@@ -7,6 +7,7 @@ import { resolveCanvasDevice } from "../util/devices.js";
 import { collectAddressingTable, maskToPrefix, type AddressingRow } from "./addressing.js";
 import {
   findReachableRouterInterfaces,
+  getRouterPortInventory,
   isEndpointDevice,
   isIpInSubnet,
   isRouterDevice,
@@ -104,6 +105,8 @@ function findDirectNeighborByIp(
   snapshot: CanvasSnapshot,
   fromRouterName: string,
   targetIp: string,
+  addressingRows: readonly AddressingRow[],
+  fallbackExitInterface?: string,
 ): { readonly router: DeviceObservation; readonly ingressPort: PortObservation; readonly egressPort: string } | null {
   const byName = new Map(snapshot.devices.map(d => [d.name, d]));
   for (const link of snapshot.links) {
@@ -122,9 +125,28 @@ function findDirectNeighborByIp(
     if (!localPort || !peerName || !peerPortName) continue;
     const peerDev = byName.get(peerName);
     if (!peerDev || !isRouterDevice(peerDev)) continue;
-    const peerPort = peerDev.ports.find(p => p.name === peerPortName && p.ip === targetIp);
+    const peerPorts = getRouterPortInventory(peerDev, addressingRows);
+    const parentLower = peerPortName.toLowerCase();
+    const peerPort = peerPorts.find(p =>
+      p.ip === targetIp && (p.name.toLowerCase() === parentLower || p.name.toLowerCase().startsWith(`${parentLower}.`)),
+    );
     if (peerPort) {
       return { router: peerDev, ingressPort: peerPort, egressPort: localPort };
+    }
+  }
+
+  // Fallback when in-memory linkRegistry is empty (loaded .pkt or restarted server)
+  if (snapshot.links.length === 0) {
+    for (const dev of snapshot.devices) {
+      if (!isRouterDevice(dev) || dev.name === fromRouterName) continue;
+      const peerPort = getRouterPortInventory(dev, addressingRows).find(p => p.ip === targetIp);
+      if (peerPort) {
+        return {
+          router: dev,
+          ingressPort: peerPort,
+          egressPort: fallbackExitInterface ?? peerPort.name,
+        };
+      }
     }
   }
   return null;
@@ -271,7 +293,13 @@ function traceOneWay(
       };
     }
 
-    const candidates = findReachableRouterInterfaces(snapshot, srcDev.name);
+    let candidates = findReachableRouterInterfaces(snapshot, srcDev.name, state.addressingRows);
+    if (candidates.length === 0 && snapshot.links.length === 0) {
+      // Fallback when linkRegistry is empty (loaded .pkt or restarted server): inspect all router IPs
+      candidates = snapshot.devices
+        .filter(isRouterDevice)
+        .flatMap(router => getRouterPortInventory(router, state.addressingRows).map(port => ({ router, port })));
+    }
     const matchingGw = candidates.find(c => c.port.ip === gwIp);
     if (!matchingGw) {
       const expectedGw = candidates.find(c => isValidIpv4(c.port.ip));
@@ -345,8 +373,8 @@ function traceOneWay(
     }
     visitedRouters.add(currentRouter.name);
 
-    // Check if dstDev is directly reachable on any active port of currentRouter
-    const directPort = currentRouter.ports.find(p => {
+    // Check if dstDev is directly reachable on any active port or subinterface of currentRouter
+    const directPort = getRouterPortInventory(currentRouter, state.addressingRows).find(p => {
       if (!isValidIpv4(p.ip)) return false;
       const pref = maskToPrefix(p.mask);
       if (pref === null) return false;
@@ -473,7 +501,8 @@ function traceOneWay(
     }
 
     // Check self-pointing route trap
-    if (currentRouter.ports.some(p => p.ip === bestRoute.nextHop)) {
+    const ownIps = new Set(getRouterPortInventory(currentRouter, state.addressingRows).map(p => p.ip).filter(isValidIpv4));
+    if (ownIps.has(bestRoute.nextHop)) {
       hops.push({
         step: stepNum,
         device: currentRouter.name,
@@ -490,7 +519,13 @@ function traceOneWay(
       };
     }
 
-    const peer = findDirectNeighborByIp(snapshot, currentRouter.name, bestRoute.nextHop);
+    const peer = findDirectNeighborByIp(
+      snapshot,
+      currentRouter.name,
+      bestRoute.nextHop,
+      state.addressingRows,
+      bestRoute.exitInterface,
+    );
     if (!peer) {
       hops.push({
         step: stepNum,

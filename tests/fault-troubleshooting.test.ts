@@ -234,4 +234,34 @@ describe("Troubleshooting Challenge Generator (pt_break_lab)", () => {
     const revealedMd = formatBreakLabMarkdown(faults1, "hard", 2, false, true);
     expect(revealedMd).toContain("Answer Key & Restore Commands");
   });
+
+  test("handles Router-on-a-Stick subinterfaces and empty snapshot links cleanly", () => {
+    const base = makeHealthyState();
+    const roasSnapshot = {
+      ...base.snapshot,
+      devices: base.snapshot.devices.map(d =>
+        d.name === "R1"
+          ? {
+              ...d,
+              ports: d.ports.map(p => p.name === "GigabitEthernet0/0" ? { ...p, ip: "0.0.0.0", mask: "0.0.0.0" } : p),
+            }
+          : d
+      ),
+      links: [], // Simulates loaded .pkt / restarted daemon with empty in-memory linkRegistry
+    };
+    const roasRows = [
+      ...base.addressingRows.filter(r => !(r.device === "R1" && r.interface === "GigabitEthernet0/0")),
+      { device: "R1", interface: "GigabitEthernet0/0.10", ip: "10.0.0.1", mask: "255.255.255.0", gateway: "N/A" },
+      { device: "R1", interface: "GigabitEthernet0/0.20", ip: "10.0.99.1", mask: "255.255.255.0", gateway: "N/A" },
+    ];
+    const roasState = { ...base, snapshot: roasSnapshot, addressingRows: roasRows };
+
+    const faults = analyzeLabFaults(roasState);
+    expect(faults).toHaveLength(0);
+
+    const traceRes = analyzePacketPath(roasState, "PC-A", "PC-B");
+    expect(traceRes.bidirectionalOk).toBe(true);
+    expect(traceRes.forward.delivered).toBe(true);
+    expect(traceRes.reverse.delivered).toBe(true);
+  });
 });

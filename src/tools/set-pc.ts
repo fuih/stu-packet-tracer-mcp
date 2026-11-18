@@ -50,7 +50,9 @@ export const registerSetPcTool: ToolModule = ({ bridge, server }) => {
       const result = await bridge.sendAndWait(js, { timeoutMs: 10_000 });
       const err = checkPtReply(result, { device, port });
       if (err) return err;
-      if (result !== "OK") return errorResult(`Unexpected reply: ${result}`);
+      if (result !== "OK" && (!result || !result.startsWith("OK:"))) {
+        return errorResult(`Unexpected reply: ${result}`);
+      }
 
       return mode === "dhcp"
         ? textResult(`'${device}' set to DHCP.`)
