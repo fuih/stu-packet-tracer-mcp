@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { z } from "zod";
+import { resetCliCache } from "../cli/engine.js";
 import {
   fileExistsJs,
   fileNewJs,
@@ -100,6 +101,7 @@ export const registerOpenPktTool: ToolModule = ({ bridge, server }) => {
       if (retValue !== "0") {
         return errorResult(`fileOpen returned non-zero FileOpenReturnValue: ${retValue}. PT refused to load the file.`);
       }
+      resetCliCache();
 
       const afterCount = await readDeviceCount(bridge);
       const afterNames = afterCount > 0 ? await readDeviceNames(bridge) : [];

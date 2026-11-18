@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { resetCliCache } from "../cli/engine.js";
 import {
   fileNewJs,
   fileOpenJs,
@@ -141,6 +142,7 @@ export const registerOpenPktFromBytesTool: ToolModule = ({ bridge, server }) => 
         await bridge.sendAndWait(removeFileJs(tempPath), { timeoutMs: 5_000 }).catch(() => {});
         return errorResult(`fileOpen returned non-zero FileOpenReturnValue: ${retValue}.`);
       }
+      resetCliCache();
 
       const afterCount = await readDeviceCount(bridge);
       const afterNames = afterCount > 0 ? await readDeviceNames(bridge) : [];

@@ -86,7 +86,7 @@ export function sendCliPagerKeyJs(deviceName: string, charCode: number, fallback
   );
 }
 
-export function enterCommandOffsetJs(deviceName: string, command: string): string {
+export function enterCommandOffsetJs(deviceName: string, command: string, anchorLen = 120): string {
   return withLabel(
     `CLI ${deviceName} → ${truncateForLabel(command)}`,
     `(function(){` +
@@ -94,15 +94,25 @@ export function enterCommandOffsetJs(deviceName: string, command: string): strin
       `if(!d)return "ERR:not_found";` +
       `var cl=d.getCommandLine();` +
       `if(!cl)return "ERR:no_cli";` +
-      `var before=String(cl.getOutput()||"").length;` +
+      `var out0=String(cl.getOutput()||"");` +
+      `var before=out0.length;` +
+      `var anchor=before>${anchorLen}?out0.substring(before-${anchorLen}):out0;` +
       `cl.enterCommand(${jsStr(command)});` +
       `var after=String(cl.getOutput()||"");` +
+      `if(anchor&&after.length>=before&&after.substring(before-anchor.length,before)===anchor){` +
+        `return before+"|"+after.substring(before);` +
+      `}` +
+      `if(anchor){` +
+        `var idx=after.lastIndexOf(anchor);` +
+        `if(idx>=0){var off=idx+anchor.length;return off+"|"+after.substring(off);}` +
+      `}` +
       `return before+"|"+after.substring(before);` +
     `})()`,
   );
 }
 
-export function readCliSliceJs(deviceName: string, offset: number): string {
+export function readCliSliceJs(deviceName: string, offset: number, anchor = ""): string {
+  const safeOffset = Math.max(0, Math.floor(offset));
   return withLabel(
     `Reading CLI output slice of ${deviceName}`,
     `(function(){` +
@@ -111,7 +121,14 @@ export function readCliSliceJs(deviceName: string, offset: number): string {
       `var cl=d.getCommandLine();` +
       `if(!cl)return "ERR:no_cli";` +
       `var out=String(cl.getOutput()||"");` +
-      `return out.substring(${Math.max(0, Math.floor(offset))});` +
+      `var a=${jsStr(anchor)};` +
+      `if(a){` +
+        `var off=${safeOffset};` +
+        `if(off>=a.length&&out.substring(off-a.length,off)===a)return out.substring(off);` +
+        `var idx=out.lastIndexOf(a);` +
+        `if(idx>=0)return out.substring(idx+a.length);` +
+      `}` +
+      `return out.substring(${safeOffset});` +
     `})()`,
   );
 }
@@ -248,6 +265,8 @@ export async function runCli(
 
   const modeBefore: CliMode = detectPrompt(tail)?.mode ?? "unknown";
 
+  // Anchor tail before sending command so ring-buffered scrollback trims cannot zero out offset
+  const preAnchor = tail.length > 120 ? tail.slice(-120) : tail;
   const defaultSettle = isLongRunningCommand(command) ? 25_000 : 2_000;
   const settleMs = opts.settleMs ?? defaultSettle;
   const pollIntervalMs = opts.pollIntervalMs ?? 120;
@@ -281,7 +300,7 @@ export async function runCli(
       pagesSent++;
       await bridge.sendAndWait(sendCliPagerKeyJs(device, 32, " "), { timeoutMs: 5_000 });
       await sleep(pollIntervalMs);
-      const nextSlice = await bridge.sendAndWait(readCliSliceJs(device, beforeOffset), { timeoutMs: 5_000 });
+      const nextSlice = await bridge.sendAndWait(readCliSliceJs(device, beforeOffset, preAnchor), { timeoutMs: 5_000 });
       if (nextSlice !== null && !nextSlice.startsWith("ERR:")) {
         rawSlice = nextSlice;
         lastLen = rawSlice.length;
@@ -304,7 +323,7 @@ export async function runCli(
     }
 
     await sleep(pollIntervalMs);
-    const nextSlice = await bridge.sendAndWait(readCliSliceJs(device, beforeOffset), { timeoutMs: 5_000 });
+    const nextSlice = await bridge.sendAndWait(readCliSliceJs(device, beforeOffset, preAnchor), { timeoutMs: 5_000 });
     if (nextSlice !== null && !nextSlice.startsWith("ERR:")) {
       if (nextSlice.length !== lastLen) {
         rawSlice = nextSlice;

@@ -34,26 +34,36 @@ curl -fsSL https://bun.sh/install | bash
 powershell -c "irm bun.sh/install.ps1 | iex"
 ```
 
-### 2. Add the MCP server to your AI client (stdio recommended)
+### 2. Install and add the MCP server to your AI client
 
-Example for **Claude Desktop** or **Cursor** (see [docs/CLIENTS.md](docs/CLIENTS.md) for Antigravity, VS Code, Gemini CLI, and HTTP mode):
+Clone the repository and install dependencies with Bun:
+
+```bash
+git clone https://github.com/fuih/stu-packet-tracer-mcp.git
+cd stu-packet-tracer-mcp
+bun install
+```
+
+Add this to your AI client configuration (example for **Claude Desktop**, **Antigravity**, or **Cursor** — see [docs/CLIENTS.md](docs/CLIENTS.md) for all clients and HTTP mode):
 
 ```json
 {
   "mcpServers": {
     "stu-packet-tracer": {
-      "command": "bunx",
-      "args": ["stu-packet-tracer-mcp", "--stdio"]
+      "command": "bun",
+      "args": ["run", "/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"]
     }
   }
 }
 ```
 
+*(If published via npm, replace `"command"`/`"args"` with `"command": "bunx"`, `"args": ["stu-packet-tracer-mcp", "--stdio"]`.)*
+
 ### 3. Connect Cisco Packet Tracer 9
 
-1. Open Cisco Packet Tracer 9 and load your `.pkt` lab file.
-2. Load the **Student MCP Bridge** Script Module (`extension/dist/stu-mcp-bridge.pts` — see [docs/BUILD_EXTENSION.md](docs/BUILD_EXTENSION.md) to package it from `extension/src/`, or use the quick paste fallback in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)).
-3. Open **Extensions -> Scripting -> Student MCP Bridge** and verify the status dot turns green (`Connected · Bridge v1`).
+1. Open Cisco Packet Tracer 9 and load your `.pkt` lab file (or start from a blank workspace).
+2. Load the **Student MCP Bridge** Script Module (`extension/dist/stu-mcp-bridge.pts` — see [docs/BUILD_EXTENSION.md](docs/BUILD_EXTENSION.md) if packaging from `extension/src/`, or use the paste-in fallback in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)).
+3. Open **Extensions -> Scripting -> Student MCP Bridge**. The monitor header turns green (**Connected**) with the **`V1`** badge and automatically displays your active AI agent name (such as `Antigravity` or `Claude Desktop`) once your client connects.
 
 ### 4. Verify the connection
 
@@ -65,7 +75,41 @@ For full step-by-step setup instructions, read [docs/QUICKSTART.md](docs/QUICKST
 
 ---
 
-## Your First Lab Report
+## User Guide: How to Use `stu-packet-tracer-mcp`
+
+Once Packet Tracer shows **Connected (`V1`)**, ask your AI assistant in plain English. Below are the five main student workflows and real example prompts:
+
+### 1. Build & Wire Topologies From Scratch or Diagrams
+- Plan first (`pt_plan_review`), add devices on clean grid rows (`pt_add_device`), install WAN modules like `HWIC-2T` (`pt_add_module`), wire links (`pt_create_link`), and lay out the canvas cleanly (`pt_auto_layout`).
+- Or load a complete starter lab from 10 built-in university topologies using `pt_lab_template` (`static-routing`, `default-route`, `rip-v2`, `ospf-single-area`, `vlan-basic`, `inter-vlan-roas`, `dhcp`, `nat-pat`, `acl-standard`, `acl-extended`).
+- **Try asking:** *"Build a 2-router OSPF single-area lab with 2 LAN switches and 2 PCs per LAN using `pt_lab_template`."*
+
+### 2. Inspect, Verify, and Troubleshoot Broken Labs
+- `pt_addressing_table`: extract a clean table of every router/switch interface and PC IP, subnet mask, and default gateway.
+- `pt_ping_matrix`: test reachability between every host pair (including automatic ARP warm-up so first pings do not false-fail) and optionally render a color-coded grid image.
+- `pt_diagnose_faults`: automatically detect common lab errors — powered-off nodes, `administratively down` ports, duplicate IPs, WAN `/30` subnet mismatches, classful `/8` mask traps, missing or wrong PC default gateways, self-pointing static routes, and one-way return routes. Supports `hints` (no spoilers), `commands`, and `autofix` modes.
+- `pt_trace_path`: trace forward **and** return hops between two hosts to spot asymmetric return drops.
+- `pt_break_lab`: inject `easy` / `medium` / `hard` faults into a healthy topology for hands-on troubleshooting practice.
+- **Try asking:** *"Why can't PC1 ping PC2? Check with `pt_trace_path` and `pt_diagnose_faults` in `hints` mode first so I can try fixing it myself."*
+
+### 3. Capture Authentic CLI & PC Command Prompt Screenshots
+- `pt_capture_cli`: run IOS commands (`show ip route`, `show ip interface brief`, `show vlan brief`) and save crisp vector SVGs and 2x PNGs showing real Packet Tracer console scrollback history.
+- `pt_capture_pc_command`: capture end-host Command Prompt commands (`ping`, `ipconfig`, `tracert`) rendered in authentic `pc-cmd` style.
+- **Try asking:** *"Capture `show ip route` from R1 in `pt-classic` theme and `ping 192.168.20.10` from PC1."*
+
+### 4. Export a Complete University Lab Report (DOCX / HTML / Markdown)
+- `pt_export_report` gathers a live topology screenshot, addressing table, optional ping matrix, CLI/PC terminal captures, and Before/After troubleshooting fixes into `.docx`, self-contained print-to-PDF `.html`, and `.md` under `./stu-pt-output/` (override via `STU_PT_OUTPUT_DIR`).
+- **Try asking:** *"Verify connectivity between PC1 and PC2 with `pt_ping_matrix`, then export a DOCX and HTML lab report titled 'Static Routing Workshop' with `show ip route` from R1 and `ipconfig` from PC1."*
+
+### 5. Bridge Monitor Panel Controls
+Inside Packet Tracer's **Student MCP Bridge** window:
+- **Filter stream logs:** click **`ALL`**, **`SYS`**, **`IPC`**, or **`ERR`**, and toggle **`autoscroll: ON / OFF`**.
+- **Hotkeys:** `s` stop/start bridge polling · `c` clear stream · `u` focus `--url` · `l` focus logs · `/` or `:` focus `pt-bridge>` CLI prompt.
+- **Built-in `pt-bridge>` prompt commands:** `:help`, `start`, `stop`, `clear`, `filter [all|sys|ipc|err]`, `ping`, `status`, `url <endpoint>`, `token <secret|clear>`.
+
+---
+
+## Quick Example Prompt
 
 Once Packet Tracer is connected with your lab open, try a prompt like:
 

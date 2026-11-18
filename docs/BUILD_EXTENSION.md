@@ -52,7 +52,7 @@ Cisco Packet Tracer 9 stores Script Modules in an encrypted `.pts` container tha
    ```bash
    bun run src/index.ts
    ```
-2. In Packet Tracer, the **Student MCP Bridge** window should automatically transition to **Connected (`http://127.0.0.1:54321`)** with the green badge **Protocol: v1**.
+2. In Packet Tracer, the **Student MCP Bridge** window automatically transitions to green **Connected** (`V1` badge) and displays your connected AI agent name (`Antigravity`, `Claude Desktop`, etc.) under the HUD monitor once your client initializes.
 3. Verify from the MCP server by calling `pt_bridge_status` — it should report:
    - `connected: true`
    - `protocol: v1`

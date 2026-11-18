@@ -221,4 +221,39 @@ describe("CLI Engine (F3 pagination & eaten-char fixes)", () => {
     expect(m2).toBe("privileged");
     expect(sim.sentCommands).toContain("end");
   });
+
+  test("anchored slice recovers output even when scrollback buffer caps and trims top lines", async () => {
+    const CAP = 500;
+    let buffer = "X".repeat(380) + "\nR1#show ip route\nC 10.0.0.0/24\nR1#\n";
+    if (buffer.length > CAP) buffer = buffer.slice(-CAP);
+
+    const mockBridge = {
+      async sendAndWait(js: string): Promise<string | null> {
+        const fakeIpc = {
+          network: () => ({
+            getDevice: () => ({
+              getCommandLine: () => ({
+                getOutput: () => buffer,
+                enterCommand: (cmd: string) => {
+                  buffer += `${cmd}\nInterface   IP-Address   Status\nGi0/0       10.0.0.1     up\nR1#\n`;
+                  if (buffer.length > CAP) buffer = buffer.slice(-CAP);
+                },
+              }),
+            }),
+          }),
+        };
+        const fn = new Function("ipc", `return ${js.replace(/^\s*\/\*[\s\S]*?\*\/\s*/, "")}`);
+        return String(fn(fakeIpc));
+      },
+    } as unknown as Bridge;
+
+    const res = await runCli(mockBridge, "R1", "show ip interface brief", {
+      skipPrepare: true,
+      pollIntervalMs: 10,
+      settleMs: 200,
+    });
+    expect(res.output).toContain("Gi0/0");
+    expect(res.output).toContain("10.0.0.1");
+    expect(res.prompt).toBe("R1#");
+  });
 });

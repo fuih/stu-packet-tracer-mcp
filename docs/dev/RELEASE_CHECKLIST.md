@@ -9,7 +9,7 @@ Status recorded on **2026-11-18** prior to public GitHub release (`fuih`).
 - [x] **TypeScript strict typecheck** (`bun run typecheck`) — 0 errors
 - [x] **100% English enforcement** (`bun run check:english`) — 0 violations across `src/`, `tests/`, `extension/src/`, `docs/`, `scripts/`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
 - [x] **Auto-generated tool documentation** (`bun run check:tools`) — `docs/TOOLS.md` synced with all **70 registered tools**
-- [x] **Full offline unit & golden test suite** (`bun test`) — **411 pass, 0 fail, 1357 expect() calls across 36 files**
+- [x] **Full offline unit & golden test suite** (`bun test`) — **413 pass, 0 fail, 1368 expect() calls across 36 files**
   - Bridge Protocol v1 (correlation IDs, long-poll latency, F1 late-result drop, 10x serialization, origin 403, token auth, legacy hex compatibility)
   - Resilient Cisco IOS CLI engine (`[yes/no]` dismissal, multi-page `--More--`, eaten-char prevention, mode tracking)
   - Tool layer (`.strict()` schema enforcement on all 70 tools, fuzzy Levenshtein `<= 2` device resolver, path helpers)
@@ -45,8 +45,8 @@ Tested live against **Cisco Packet Tracer 9.0.1** running our open-source **Stud
 
 ## Remaining Manual Steps Before Publishing `v0.1.0`
 
-### 1. Commit the Packaged `.pts` Extension (if exported)
-Ensure `extension/dist/stu-mcp-bridge.pts` is exported from Packet Tracer per [docs/BUILD_EXTENSION.md](../BUILD_EXTENSION.md) and committed.
+### 1. Packaged `.pts` Extension (Ready)
+- [x] [`extension/dist/stu-mcp-bridge.pts`](../../extension/dist/stu-mcp-bridge.pts) is packaged and committed.
 
 ### 2. Create GitHub Repository & Push `main`
 ```bash

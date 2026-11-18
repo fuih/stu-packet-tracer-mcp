@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { linkRegistry } from "../canvas/link-registry.js";
+import { resetCliCache } from "../cli/engine.js";
 import { listDevicesJs, removeDeviceJs } from "../ipc/generator.js";
 import { errorResult, requireConnectedBridge, textResult } from "./helpers.js";
 import type { ToolModule } from "./types.js";
@@ -24,6 +25,7 @@ export const registerDeleteDeviceTool: ToolModule = ({ bridge, server }) => {
       const stillThere = verify.split("\n").some(line => line.split("|")[0] === name);
       if (stillThere) return errorResult(`PT still reports '${name}' present after removeDevice.`);
       linkRegistry.forgetDevice(name);
+      resetCliCache(name);
       return textResult(`Removed '${name}'.`);
     },
   );

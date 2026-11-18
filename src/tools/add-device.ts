@@ -2,6 +2,7 @@ import { z } from "zod";
 import { resolveModel } from "../catalog/devices.js";
 import { captureSnapshot } from "../canvas/snapshot.js";
 import { nextSlotForCategory } from "../canvas/layout.js";
+import { resetCliCache } from "../cli/engine.js";
 import { addDeviceJs } from "../ipc/generator.js";
 import { errorResult, requireConnectedBridge, textResult } from "./helpers.js";
 import { checkPtReply } from "./pt-errors.js";
@@ -58,6 +59,7 @@ export const registerAddDeviceTool: ToolModule = ({ bridge, server }) => {
       const result = await bridge.sendAndWait(js, { timeoutMs: 10_000 });
       const err = checkPtReply(result, { device: name });
       if (err) return err;
+      resetCliCache(name);
       const placement = autoPlaced ? `auto-grid (${finalX},${finalY})` : `(${finalX},${finalY})`;
       return textResult(`Added ${resolved.displayName} as '${result}' at ${placement}.`);
     },

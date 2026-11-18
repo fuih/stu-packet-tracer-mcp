@@ -39,7 +39,28 @@ bun --version
 
 ### Option A: Stdio mode (recommended for most AI clients)
 
-Your MCP client starts `stu-packet-tracer-mcp` automatically as a subprocess:
+#### From GitHub clone (local install)
+
+```bash
+git clone https://github.com/fuih/stu-packet-tracer-mcp.git
+cd stu-packet-tracer-mcp
+bun install
+```
+
+Add the cloned repo path to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "stu-packet-tracer": {
+      "command": "bun",
+      "args": ["run", "/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"]
+    }
+  }
+}
+```
+
+#### Or via `bunx` (npm registry)
 
 ```json
 {
@@ -59,16 +80,13 @@ See [docs/CLIENTS.md](CLIENTS.md) for exact file paths and configurations for Cl
 Start the server manually:
 
 ```bash
-bunx stu-packet-tracer-mcp
+bun run src/index.ts     # from cloned repo (or: bunx stu-packet-tracer-mcp)
 ```
 
 It binds two localhost-only ports:
 
 - **MCP HTTP endpoint:** `http://127.0.0.1:39001/mcp`
 - **Packet Tracer Bridge:** `http://127.0.0.1:54321`
-
-> [!TIP]
-> Running from a cloned repository? Replace `bunx stu-packet-tracer-mcp` with `bun run src/index.ts` inside the repo directory.
 
 ---
 
@@ -79,7 +97,7 @@ It binds two localhost-only ports:
 3. Go to **Extensions -> Scripting -> Configure PT Script Modules...** (or press **Ctrl+Shift+U**).
 4. Click **Add** and select `extension/dist/stu-mcp-bridge.pts` (see [docs/BUILD_EXTENSION.md](BUILD_EXTENSION.md) if you are building the `.pts` package from source in `extension/src/`).
 5. Open **Extensions -> Scripting -> Student MCP Bridge**.
-6. Verify the panel shows a green dot: **Connected · Bridge v1**.
+6. Verify the header shows a green **Connected** pill (plus your AI agent name once an MCP client initializes) and **V1**.
 
 > [!NOTE]
 > Need a quick test without loading a `.pts` file first? See the paste-in bootstrap fallback in [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md#emergency-paste-in-bootstrap).
