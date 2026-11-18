@@ -8,6 +8,8 @@
  *   bun scripts/mcp-call.ts pt_run_cli '{"device":"R1","command":"show ip route"}'
  */
 
+export {};
+
 const URL_ = process.env.MCP_URL ?? "http://127.0.0.1:39001/mcp";
 const H = {
   "Content-Type": "application/json",
@@ -40,14 +42,14 @@ if (!sid) {
   process.exit(1);
 }
 
-const [name, args = "{}"] = process.argv.slice(2);
-if (!name) {
+const [toolName, args = "{}"] = process.argv.slice(2);
+if (!toolName) {
   console.error("Usage: bun scripts/mcp-call.ts <tool_name|--list> [json_args]");
   process.exit(1);
 }
 
-const method = name === "--list" ? "tools/list" : "tools/call";
-const params = name === "--list" ? {} : { name, arguments: JSON.parse(args) };
+const method = toolName === "--list" ? "tools/list" : "tools/call";
+const params = toolName === "--list" ? {} : { name: toolName, arguments: JSON.parse(args) };
 
 const res = await fetch(URL_, {
   method: "POST",

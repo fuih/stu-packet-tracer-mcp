@@ -1,235 +1,143 @@
-# AGENTS.md — guía para LLMs que usan packet-tracer-mcp
+# AGENTS.md — Operational Guide for LLMs Using `stu-packet-tracer-mcp`
 
-Este archivo es para ti, el modelo, cuando un usuario te pida montar
-topologías en Cisco Packet Tracer 9 a través de este servidor MCP.
-Léelo antes de empezar a llamar tools — te ahorra retrabajos.
+This guide is for you (the AI model) whenever a user asks you to build, inspect, diagnose, or document topologies in Cisco Packet Tracer 9 through this MCP server. Read it before calling tools to avoid rework.
 
-## 1. Antes de tocar nada
+## 1. Before Touching Anything
 
-1. Llama a `pt_bridge_status` para verificar que el bridge ve la
-   extensión PT. Si no, pide al usuario el bootstrap.
-2. Llama a `pt_query_topology` para ver qué hay ya en el canvas.
-3. Si el usuario aporta un diagrama (PDF, imagen, sketch), descríbelo
-   con tus palabras antes de crear nada. Identifica:
-   - Cuántos routers, switches y endpoints.
-   - Qué LANs son **de usuario** (con PCs/servidores).
-   - Qué LANs son **de tránsito** entre routers (sólo switch, sin PCs).
-   - Qué enlaces son **LAN interna** (Gigabit) y cuáles **WAN exterior**
-     (Serial /30 público).
-4. Si el diagrama es ambiguo, **pregunta al usuario antes de adivinar**.
-   Una topología hecha sobre la suposición equivocada cuesta más tiempo
-   de rehacer que la pregunta.
+1. Call `pt_bridge_status` to confirm the bridge is connected to the Packet Tracer extension. If not, guide the user to load `extension/dist/stu-mcp-bridge.pts` (or use the paste-in bootstrap snippet returned by `pt_bridge_status`).
+2. Call `pt_query_topology` to see what devices and links already exist on the canvas.
+3. If the user provides a topology diagram (PDF, image, or sketch), summarize it in your own words before creating anything. Identify:
+   - How many routers, switches, and endpoints exist.
+   - Which LANs are **user LANs** (with PCs/servers).
+   - Which LANs are **transit LANs** between routers (switch only, no PCs).
+   - Which links are **internal LAN links** (GigabitEthernet) and which are **external WAN links** (Serial `/30` public links).
+4. If the brief or diagram is ambiguous, **ask the user before guessing**. Building on a wrong assumption wastes more time than clarifying upfront.
 
-## 2. Convenciones de cableado
+## 2. Cabling Conventions
 
-Esta es la fuente de errores más común. Lee con atención.
+This is the most common source of topology errors. Follow these rules carefully:
 
-| Tipo de enlace                                  | Cable     | Interfaces                          |
-| ----------------------------------------------- | --------- | ----------------------------------- |
-| Router ↔ Switch (LAN de oficina)                | straight  | GigabitEthernet ↔ Gigabit/Fast      |
-| Switch ↔ PC / Server                            | straight  | Fast/GigabitEthernet                |
-| Router ↔ Router por LAN compartida vía switch   | straight  | GigabitEthernet (ambos vía switch)  |
-| **Router ↔ Router por WAN exterior pública**    | **serial**| **Serial0/1/0** (requiere HWIC-2T)  |
-| Switch ↔ Switch (trunk)                         | cross     | GigabitEthernet                     |
+| Link Type | Cable | Interfaces |
+| --- | --- | --- |
+| Router ↔ Switch (office LAN) | `straight` | `GigabitEthernet` ↔ `Gigabit`/`FastEthernet` |
+| Switch ↔ PC / Server | `straight` | `Fast`/`GigabitEthernet` |
+| Router ↔ Router over shared LAN switch | `straight` | `GigabitEthernet` (both via switch) |
+| **Router ↔ Router over external public WAN** | **`serial`** | **`Serial0/1/0`** (requires `HWIC-2T`) |
+| Switch ↔ Switch (trunk) | `cross` | `GigabitEthernet` |
 
-**Regla mnemotécnica:** si en el enunciado aparecen palabras como
-"red pública", "ISP", "/30 público", "WAN", "punto a punto público", o
-en el diagrama hay líneas rojas entre routers atravesando una nube de
-Internet → es **serial**. Si es un segmento dentro de la misma oficina
-→ **GigabitEthernet**.
+**Rule of thumb:** if the lab brief mentions keywords such as "public network", "ISP", "public `/30`", "WAN", "public point-to-point", or shows red lightning-bolt lines between routers crossing an Internet cloud, use **`serial`**. Internal office segments use **`GigabitEthernet`**.
 
-**Importante:** los routers ISR (1941, 2901, 2911, ISR4321, ISR4331)
-**no tienen puertos serie por defecto**. Antes de crear un enlace
-serial llama a `pt_add_module` con `HWIC-2T` en cada router. Si te
-saltas este paso, el `pt_create_link` con `cable="serial"` fallará.
+**Important:** ISR routers (`1941`, `2901`, `2911`, `ISR4321`, `ISR4331`) **ship with NO serial ports by default**. Before creating a serial link, call `pt_add_module` with `HWIC-2T` (or `NIM-2T` where requested) on each router. Skipping this step causes `pt_create_link` with `cable="serial"` to fail.
 
-**Slots por chasis (validados por `pt_add_module`):**
+**Chassis slots validated by `pt_add_module`:**
 
-| Modelo  | Bays disponibles                | Familia            |
-| ------- | ------------------------------- | ------------------ |
-| 1841    | `0/0`, `0/1`                    | HWIC / WIC         |
-| 2811    | `0/0`, `0/1`, `0/2`, `0/3`      | HWIC / WIC / NM    |
-| 1941    | `0/0`, `0/1`                    | EHWIC / HWIC / WIC |
-| 2901    | `0/0`, `0/1`, `0/2`, `0/3`      | EHWIC / HWIC / WIC |
-| 2911    | `0/0`, `0/1`, `0/2`, `0/3`      | EHWIC / HWIC / WIC |
-| ISR4321 | `0/1`, `1/0`                    | NIM / SM-X         |
-| ISR4331 | `0/1`, `0/2`, `1/0`             | NIM / SM-X         |
+| Model | Available Bays | Module Family |
+| --- | --- | --- |
+| `1841` | `0/0`, `0/1` | HWIC / WIC |
+| `2811` | `0/0`, `0/1`, `0/2`, `0/3` | HWIC / WIC / NM |
+| `1941` | `0/0`, `0/1` | EHWIC / HWIC / WIC |
+| `2901` | `0/0`, `0/1`, `0/2`, `0/3` | EHWIC / HWIC / WIC |
+| `2911` | `0/0`, `0/1`, `0/2`, `0/3` | EHWIC / HWIC / WIC |
+| `ISR4321` | `0/1`, `1/0` | NIM / SM-X |
+| `ISR4331` | `0/1`, `0/2`, `1/0` | NIM / SM-X |
 
-**Aviso ISR4xxx:** la serie 4000 NO usa HWIC sino **NIM** (Network
-Interface Module). En Packet Tracer 9 el módulo `HWIC-2T` se acepta
-en NIM bays por compatibilidad, pero la práctica académica suele
-pedir `NIM-2T`. Comprueba el enunciado: si menciona NIM-2T, instala
-ese; si dice HWIC-2T, ambos funcionan en PT.
+**ISR4xxx note:** The 4000 series uses **NIM** (Network Interface Module) slots. Packet Tracer 9 accepts `HWIC-2T` inside NIM bays for compatibility, though academic briefs often specify `NIM-2T` — check the brief and match what it expects.
 
-**Errores típicos al añadir módulos:**
-- ❌ Slot `0/0` en un ISR4321/4331 → ese bay es BUILTIN (los GE de
-  fábrica), no acepta módulos. Usa `0/1` (o `0/2` en el 4331).
-- ❌ Slot `0/2` en un 1941 → sólo tiene 2 bays (`0/0`, `0/1`).
-- ❌ `0/3` en un 1841 → mismo motivo, sólo 2 bays.
+**Common module-slot mistakes:**
+- Slot `0/0` on `ISR4321` / `ISR4331` is the built-in GE bay and rejects add-on modules. Use `0/1` (or `0/2` on `ISR4331`).
+- Slot `0/2` on `1941` does not exist (`1941` only has `0/0`, `0/1`).
+- Slot `0/3` on `1841` does not exist (`1841` only has `0/0`, `0/1`).
 
-## 3. LANs de usuario vs LANs de tránsito
+## 3. User LANs vs. Transit LANs
 
-Un patrón muy frecuente en prácticas académicas:
+A frequent university lab pattern looks like this:
 
-```
-LAN1, LAN2  → de oficina A, con PCs colgando del switch
-LAN3        → segmento de tránsito entre R1 y R2 (mismo edificio,
-               sólo el switch que une los dos routers, SIN PCs)
-LAN4        → segmento de tránsito entre R3 y R4 (oficina B, SIN PCs)
-LAN5, LAN6  → de oficina B, con PCs colgando del switch
+```text
+LAN1, LAN2  -> office A user LANs (switch with attached PCs)
+LAN3        -> transit segment between R1 and R2 (same building, switch only, NO PCs)
+LAN4        -> transit segment between R3 and R4 (office B, NO PCs)
+LAN5, LAN6  -> office B user LANs (switch with attached PCs)
 ```
 
-La frase "todas las LANs con misma capacidad de direccionamiento"
-**se refiere al prefijo** (todas /23, todas /24…), no a que todas
-tengan endpoints de usuario. Si una LAN aparece sólo entre dos routers
-de la misma oficina y no se mencionan ordenadores en ella, es de
-tránsito: pon switch + cable a los dos routers, y nada más.
+The phrase "all LANs with the same addressing capacity" **refers to the subnet prefix** (for example all `/23` or all `/24`), NOT that every LAN has user workstations. If a LAN only sits between two routers and no hosts are listed on it, treat it as a transit segment (switch + links to the routers only).
 
-## 4. Flujo recomendado para topologías de varios routers
+## 4. Recommended Workflow for Multi-Router Topologies
 
-```
-1. pt_clear_canvas             (si vas a empezar de cero)
-2. pt_add_device  × N          (crea TODOS los devices SIN x/y)
-3. pt_add_module  × M          (HWIC-2T donde haga falta serial)
-4. pt_create_link × K          (cablea siguiendo convenciones de §2)
-5. pt_auto_layout              (re-rejilla todo el canvas)
-6. pt_run_cli_bulk             (configuración IP / hostname)
-7. pt_apply_advanced_routing   (EIGRP/OSPF/BGP)
-8. pt_save_pkt                 (persistir el resultado)
+```text
+1. pt_clear_canvas             (if starting fresh)
+2. pt_plan_review              (mandatory pre-flight for >=3 routers or user diagrams)
+3. pt_add_device  x N          (create ALL devices WITHOUT manual x/y coordinates)
+4. pt_add_module  x M          (HWIC-2T where serial WAN links are needed)
+5. pt_create_link x K          (wire following Section 2 conventions)
+6. pt_auto_layout              (apply topology-aware layout across the canvas)
+7. pt_run_cli_bulk             (push IP / hostname / base IOS configuration)
+8. pt_apply_advanced_routing   (configure EIGRP / OSPF / BGP if needed)
+9. pt_save_pkt                 (persist the lab file)
 ```
 
-**No inventes coordenadas a mano.** El layout topology-aware de
-`pt_auto_layout` produce un canvas ordenado: routers en una banda,
-switches debajo de su router padre, endpoints debajo de su switch,
-nubes/clouds compartidas centradas entre los routers que las
-comparten. Inventar X/Y suele acabar en el típico canvas alargado y
-desalineado donde nada se ve.
+**Do not invent manual `x`/`y` coordinates.** `pt_auto_layout` arranges routers along a clear horizontal band, places switches beneath their parent router, places endpoints beneath their switch, and centers shared switches/clouds between connected routers.
 
-## 5. Errores típicos a evitar
+## 5. Common Pitfalls to Avoid
 
-- ❌ **Cablear R1↔Internet con GigabitEthernet** cuando el enunciado
-  habla de red pública /30. Es serial, no gigabit.
-- ❌ **Añadir PCs a la LAN de tránsito** entre dos routers de la misma
-  oficina. Esa LAN normalmente no tiene usuarios.
-- ❌ **Inventar coordenadas X/Y secuenciales** (100, 250, 400, 550…) en
-  lugar de dejar que `pt_add_device` o `pt_auto_layout` decidan.
-- ❌ **No esperar al diálogo de configuración inicial** del ISR. Tras
-  añadir un router, espera ~3 s antes de mandarle CLI, o envía `no`
-  primero para salir del wizard (`Continue with configuration dialog?`).
-- ❌ **Mezclar configuración IP con hostname en el mismo bulk** sin
-  pasar antes por `enable`. `pt_run_cli_bulk` ya entra en modo
-  privilegiado; úsalo.
-- ⚠️ **`switchport trunk encapsulation dot1q` depende del modelo de
-  switch — no es genérico:**
-  - **2950 / 2960**: el parser NO reconoce el subcomando (sólo
-    soportan 802.1Q implícito). Si lo emites, IOS responde `% Invalid
-    input` y puede envenenar el resto del bulk. `pt_run_cli_bulk`
-    detecta el modelo y lo filtra automáticamente en estos chasis.
-  - **3560 / 3650 / IE-3400 / IE-9320 (multilayer)**: el parser SÍ
-    requiere el subcomando — Cisco IOS expone la elección porque
-    estos chasis soportan también ISL. La práctica P2 de Voz/QoS lo
-    pide explícitamente sobre el 3560-24PS con la nota *"Cuidado con
-    el modelo de switch"*. NO filtrar.
-  - **Router (2811, 1941, etc.) con subinterfaces**: la sintaxis es
-    distinta — `encapsulation dot1Q <vlan>` BAJO la subinterfaz. No
-    confundir con `switchport trunk encapsulation`. El filtro NO toca
-    esa línea.
-- ❌ **Olvidar `clock rate` en el lado DCE** de un enlace serial. En
-  PT, uno de los dos extremos es DCE (provee reloj) y el otro DTE.
-  Sin `clock rate 64000` (u otro válido) en el DCE, la línea queda
-  `down/down`. Tras `pt_create_link cable="serial"` la tool te lo
-  recuerda. Para saber qué lado es DCE: `show controllers <iface>`.
-- ❌ **Cable consola para datos**. `cable="console"` (rollover RS-232↔
-  RJ45) sólo conecta un PC al puerto Console de un router/switch
-  para gestión CLI. No transmite datos IP. Para LAN usa `straight`.
+- **Wiring R1 ↔ Internet with `GigabitEthernet`** when the brief specifies a public `/30` WAN link. Use `cable="serial"`.
+- **Adding PCs to a router-to-router transit LAN** unless the brief explicitly shows endpoints there.
+- **Inventing sequential `x`/`y` coordinates** (`100, 250, 400, 550...`) instead of letting `pt_add_device` / `pt_auto_layout` lay out the topology.
+- **Ignoring the initial configuration dialog** on newly added ISRs (`Continue with configuration dialog? [yes/no]:`). Our CLI engine handles dismissing it automatically, or you can wait ~3 s after adding a router.
+- **Mixing privileged and unprivileged commands in raw scripts** without ensuring `enable`. `pt_run_cli` and `pt_run_cli_bulk` track and enter privileged mode automatically.
+- **Assuming `switchport trunk encapsulation dot1q` is universal across switch models:**
+  - **`2950` / `2960`**: IOS rejects `switchport trunk encapsulation dot1q` because only 802.1Q is supported (`% Invalid input`). `pt_run_cli_bulk` detects these models and filters it automatically.
+  - **`3560` / `3650` / `IE-3400` / `IE-9320` (multilayer)**: Cisco IOS requires `switchport trunk encapsulation dot1q` before `switchport mode trunk` on models that also support ISL (for example `3560-24PS`). Check model behavior carefully; do not blindly strip it everywhere.
+  - **Routers (`2811`, `1941`, etc.) with subinterfaces**: use `encapsulation dot1Q <vlan>` under the subinterface (`pt_configure_subinterface`). The bulk switch filter leaves router subinterface commands untouched.
+- **Forgetting `clock rate` on the DCE side of a serial link.** Without `clock rate 64000` (or another valid rate) on the DCE router interface, the serial link remains `down/down`. Check which side is DCE with `show controllers <interface>`.
+- **Using a console cable for data.** `cable="console"` (rollover RS-232 ↔ RJ45) is only for out-of-band management connections, never LAN data traffic. Use `straight`.
 
-## 6. Cuando algo falla
+## 6. Debugging When Something Fails
 
-- `pt_query_topology` para ver el estado actual.
-- `pt_inspect_canvas` para ver qué puertos están conectados.
-- `pt_get_device_details` para ver módulos e interfaces de un router
-  concreto (útil para confirmar si el HWIC-2T se añadió bien).
-- `pt_screenshot` para una vista visual; compárala con la imagen del
-  enunciado si la práctica es académica.
-- `pt_inspect_ports`, `pt_read_vlans`, `pt_read_acl`, `pt_show_bgp_routes`
-  para diagnóstico específico por dispositivo.
+- `pt_query_topology` — inspect live devices and links.
+- `pt_inspect_canvas` — inspect port attachment status.
+- `pt_get_device_details` — inspect installed modules and exact interface names on a device.
+- `pt_diagnose_faults` & `pt_trace_path` — inspect missing routes, shutdown interfaces, wrong PC gateways, and VLAN/trunk mismatches.
+- `pt_screenshot` — capture a canvas overview to compare visually against the lab diagram.
+- `pt_inspect_ports`, `pt_read_vlans`, `pt_read_acl`, `pt_show_bgp_routes` — targeted per-device inspection.
 
-## 7. Verificación de fallo silencioso
+## 7. Detecting Silent Failures
 
-PT 9 acepta muchas operaciones sin error visible aunque internamente
-no surtan efecto. **Verifica siempre**:
+Packet Tracer 9 may return no error even when an operation did not take effect. **Always verify**:
 
-- Tras `pt_add_device`: `pt_query_topology` debe listarlo.
-- Tras `pt_add_module`: `pt_get_device_details` debe mostrar el módulo
-  y los puertos nuevos (Serial0/1/0, Serial0/1/1) en la lista de
-  interfaces. Si no aparecen, el slot estaba ocupado o el módulo no
-  encaja en ese chasis.
-- Tras `pt_create_link`: `pt_inspect_canvas` debe mostrar AMBOS
-  extremos como "connected". Si sólo aparece uno, el link está roto.
-- Tras CLI: usa `pt_show_running` o `pt_run_cli` con `show ip int br`
-  para confirmar que los comandos calaron. Errores típicos:
-  * `enable` no aplicado (estás en modo usuario, casi todo se rechaza).
-  * `configure terminal` enviado a un switch IOS antiguo (parser bug:
-    intenta `figure terminal` como workaround documentado).
-  * `no shutdown` olvidado en una interfaz física → status admin-down.
+- After `pt_add_device`: confirm the device appears in `pt_query_topology`.
+- After `pt_add_module`: confirm the module and new ports (such as `Serial0/1/0`, `Serial0/1/1`) appear in `pt_get_device_details`. If not, the slot was occupied or unsupported on that chassis.
+- After `pt_create_link`: confirm BOTH endpoints report connected status in `pt_inspect_canvas`.
+- After CLI changes: verify with `pt_show_running` or `pt_run_cli` (`show ip interface brief`):
+  - Ensure commands ran in privileged/config mode (`enable` -> `configure terminal`).
+  - Ensure `no shutdown` was applied on every active physical interface.
 
-## 8. Patrones que el LLM **no** debe inventar
+## 8. Patterns Never to Bypass
 
-- ❌ **No inventes coordenadas X/Y**. Deja que `pt_add_device` las
-  asigne (grid por categoría) y, al final, llama a `pt_auto_layout`.
-- ❌ **No fuerces nombres de puerto** que no existan en el modelo. Si
-  no estás seguro: `pt_get_device_details` lista los puertos reales.
-- ❌ **No mezcles configuración IP y hostname** en un mismo
-  `pt_run_cli_bulk` sin tener en cuenta el modo. La tool ya entra a
-  privileged mode, pero si emites comandos en orden incorrecto te
-  quedas en config sin salir.
-- ❌ **No uses `pt_send_raw` como atajo** para evitar
-  `pt_create_link`. Saltarse la validación de `confirm_internal_lan`
-  reproduce el error clásico de cablear WAN con Gigabit.
-- ❌ **No asumas que un fallo sin error es éxito.** Si una herramienta
-  responde "OK" sin texto adicional, sigue verificando con
-  `pt_query_topology` antes de continuar.
+- **Do not bypass `pt_create_link`** using `pt_send_raw` just to avoid the `confirm_internal_lan` check between two routers.
+- **Do not guess port names** that may not exist on the hardware model — check `pt_get_device_details` first.
+- **Do not assume silent success** — verify state against the live canvas (`pt_query_topology`, `pt_show_running`).
 
-## 9. Escape hatches (último recurso)
+## 9. Escape Hatches (Last Resort)
 
-Cuando una operación legítima no la cubre ninguna tool específica:
+When a legitimate PT 9 operation has no dedicated high-level tool:
 
-- `pt_send_raw` ejecuta JS arbitrario en el Script Engine de PT. Útil
-  para descubrir APIs nuevas, pero **frágil** y sin validación. Si
-  acabas usándolo más de una vez para lo mismo, abre un issue: hace
-  falta una tool dedicada.
-- `pt_run_cli` para una sola línea CLI; `pt_run_cli_bulk` para varias.
-  Ambos entran en `enable` automáticamente.
-- `pt_load_snapshot` / `pt_save_snapshot` para checkpointing
-  rápido del canvas durante experimentos. NO sustituye a `pt_save_pkt`
-  para persistencia real.
+- `pt_send_raw` executes arbitrary JavaScript in PT's Script Engine. Useful for inspection, but fragile and unvalidated.
+- `pt_run_cli` (single command) and `pt_run_cli_bulk` (multi-line block) both handle mode entry and prompt tracking automatically.
+- `pt_save_snapshot` / `pt_load_snapshot` checkpoint canvas state during experiments (never a substitute for `pt_save_pkt`).
 
-## 10. Cosas que actualmente **no son posibles** (limitaciones PT 9)
+## 10. Known Packet Tracer 9 API Limitations
 
-- **Asociación radio cliente ↔ AP**: la API JS persiste SSID/auth/key
-  pero nunca dispara la asociación. El cliente no detecta APs (count=0).
-- **Eventos reactivos**: `registerObjectEvent` es stub; acepta
-  cualquier nombre y nunca entrega callbacks. Toda detección de
-  cambios va por polling.
-- **DHCP option-150** en Server-PT: `DhcpPool` no expone setTftp /
-  setOption / setBoot. Para VoIP con TFTP, mueve el DHCP al router
-  (CLI) o pídele al usuario que configure la opción 150 en GUI.
-- **Undo/redo**: no expuesto en la API JS. Usa
-  `pt_save_snapshot` antes de operaciones grandes y
-  `pt_load_snapshot` para revertir.
-- **CME / `telephony-service`** sólo aparece en routers ISR si activas
-  la licencia: `license boot module c2900 technology-package uck9` +
-  reload. Sin eso, el parser CLI rechaza los comandos VoIP.
+- **Wireless client ↔ AP association:** The JS API sets SSID/auth/keys cleanly, but programmatic wireless client association may not trigger cleanly (`count=0` on client).
+- **Reactive events:** `registerObjectEvent` in PT 9 Script Engine is a stub that accepts names without firing callbacks; detection relies on polling.
+- **DHCP Option 150 on Server-PT:** `DhcpPool` does not expose `setTftp` / `setOption` / `setBoot` via JS API. For VoIP IP Phones, put the DHCP pool with `option 150 ip <tftp>` on the CME router (`pt_apply_services` `dhcpPools[].tftpServer`), or set TFTP via the Server-PT GUI.
+- **Undo/redo:** Not exposed via PT 9 JS API. Use `pt_save_snapshot` before major changes.
+- **CME (`telephony-service`):** Stock 2900 routers require activating the `uck9` package (`license boot module c2900 technology-package uck9` + reload) before IOS accepts VoIP CME commands.
 
-## 11. Checklist rápido antes de marcar el trabajo como hecho
+## 11. Pre-Completion Verification Checklist
 
-1. `pt_query_topology` — ¿están todos los devices que esperabas?
-2. `pt_inspect_canvas` — ¿los enlaces están conectados por ambos
-   extremos y con el cable correcto?
-3. `pt_show_running` en cada router — ¿hostname, interfaces y
-   `no shutdown` aplicados? ¿IPs correctas?
-4. `pt_ping` (o `pt_run_cli` con `ping x.x.x.x`) — ¿hay conectividad
-   end-to-end entre PCs/servidores de oficinas distintas?
-5. `pt_screenshot` — comparativa visual contra la imagen del
-   enunciado si es práctica académica.
-6. `pt_save_pkt` — persistencia final.
+1. `pt_query_topology` — are all expected devices present?
+2. `pt_inspect_canvas` — are all links connected on both ends with the right cable types?
+3. `pt_show_running` / `pt_addressing_table` — are hostnames, IPs, masks, gateways, and `no shutdown` applied accurately?
+4. `pt_ping_matrix` / `pt_ping` — is end-to-end connectivity passing between hosts across all required subnets?
+5. `pt_diagnose_faults` (check-only `mode: "hints"`) — zero critical connectivity or routing faults remaining?
+6. `pt_save_pkt` — persist the final `.pkt` file if requested.

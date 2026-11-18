@@ -1,18 +1,18 @@
 # Release Checklist (`v0.1.0`)
 
-Status recorded on **2026-11-17** prior to human handoff (`fuih`).
+Status recorded on **2026-11-18** prior to public GitHub release (`fuih`).
 
 ---
 
 ## Automated Verification (Completed)
 
 - [x] **TypeScript strict typecheck** (`bun run typecheck`) — 0 errors
-- [x] **100% English enforcement** (`bun run check:english`) — 0 violations across `src/`, `tests/`, `extension/src/`, `docs/`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`
-- [x] **Auto-generated tool documentation** (`bun run check:tools`) — `docs/TOOLS.md` synced with all **67 registered tools**
-- [x] **Full offline unit & golden test suite** (`bun test`) — **403 pass, 0 fail, 1304 expect() calls across 35 files**
+- [x] **100% English enforcement** (`bun run check:english`) — 0 violations across `src/`, `tests/`, `extension/src/`, `docs/`, `scripts/`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
+- [x] **Auto-generated tool documentation** (`bun run check:tools`) — `docs/TOOLS.md` synced with all **70 registered tools**
+- [x] **Full offline unit & golden test suite** (`bun test`) — **411 pass, 0 fail, 1357 expect() calls across 36 files**
   - Bridge Protocol v1 (correlation IDs, long-poll latency, F1 late-result drop, 10x serialization, origin 403, token auth, legacy hex compatibility)
   - Resilient Cisco IOS CLI engine (`[yes/no]` dismissal, multi-page `--More--`, eaten-char prevention, mode tracking)
-  - Tool layer (`.strict()` schema enforcement on all 67 tools, fuzzy Levenshtein `<= 2` device resolver, path helpers)
+  - Tool layer (`.strict()` schema enforcement on all 70 tools, fuzzy Levenshtein `<= 2` device resolver, path helpers)
   - Terminal renderer (5 golden SVG themes, XML escaping, line wrapping, callout annotations, `@resvg/resvg-wasm` + DejaVu Sans Mono 2x PNG)
   - Student tools (addressing table, ping matrix + diagnostics, lab checker, CLI output explainer, subnet/VLSM calculator, 10 lab templates, Teach Mode)
   - Report export (Markdown, self-contained print-ready HTML, real OOXML/ZIP `.docx` with embedded PNGs)
@@ -30,7 +30,7 @@ Status recorded on **2026-11-17** prior to human handoff (`fuih`).
 
 ## Live Packet Tracer 9 Smoke Test (Completed 2026-11-17)
 
-Tested live against **Cisco Packet Tracer 9.0.1** running our open-source **Student MCP Bridge (`Protocol: v1`)** with `/home/fuih/network/Workshop_Static_Routing.pkt`:
+Tested live against **Cisco Packet Tracer 9.0.1** running our open-source **Student MCP Bridge (`Protocol: v1`)** with `Workshop_Static_Routing.pkt`:
 
 - [x] `bun scripts/mcp-call.ts pt_bridge_status '{}'` -> `connected: true`, `protocol: v1`
 - [x] `bun scripts/mcp-call.ts pt_run_cli '{"device":"R1","command":"show running-config"}'` -> full config ending in `end`, zero `--More--`

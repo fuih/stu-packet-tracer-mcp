@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prepareDevice } from "../cli/engine.js";
 import { fetchDeviceModel } from "../ipc/device-model.js";
 import { bulkCliJs } from "../ipc/generator.js";
+import { isTeachModeEnabled } from "../student/teach.js";
 import { resolveCanvasDevice } from "../util/devices.js";
 import { ptError } from "../util/errors.js";
 import { defineTool } from "./define.js";
@@ -33,7 +34,7 @@ export const registerRunCliBulkTool = defineTool({
   input: InputSchema,
   handler: async ({ device, commands, tail_chars, dry_run }, { bridge }) => {
     const commandBlock = Array.isArray(commands) ? commands.join("\n") : commands;
-    const isTeachMode = dry_run === true || process.env.STU_PT_TEACH_MODE === "1";
+    const isTeachMode = isTeachModeEnabled(dry_run);
 
     if (isTeachMode) {
       const lines = commandBlock.split(/\r?\n/).map(l => l.trim()).filter(Boolean);

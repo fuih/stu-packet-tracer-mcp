@@ -58,6 +58,7 @@
     "src",
     "assets",
     "extension/dist/*.pts",
+    "AGENTS.md",
     "server.json",
     "README.md",
     "NOTICE.md",

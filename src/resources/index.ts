@@ -1,5 +1,5 @@
 /**
- * MCP Resources exposed by packet-tracer-mcp.
+ * MCP Resources exposed by stu-packet-tracer-mcp.
  *
  * The handshake `instructions` field travels in every `initialize` call but
  * fills the LLM's context on every turn — so we keep it short and put the
@@ -79,7 +79,7 @@ const TOPOLOGY_PATTERNS = `# Topology patterns: user LANs vs transit LANs
 
 A frequent academic-brief pattern looks like this:
 
-  LAN1, LAN2  → office A user LANs (switch + PCs colgando)
+  LAN1, LAN2  → office A user LANs (switch + attached PCs)
   LAN3        → transit segment between R1 and R2 (same office)
                 ONLY a switch between the routers, NO PCs
   LAN4        → transit segment between R3 and R4 (same office)
@@ -116,7 +116,7 @@ When ambiguous: ask the user.
 9. pt_save_pkt                  (persist)
 `;
 
-const VOICE_CME_CONVENTION = `# Voice / CME convention for packet-tracer-mcp
+const VOICE_CME_CONVENTION = `# Voice / CME convention for stu-packet-tracer-mcp
 
 End-to-end recipe for an IP-Phone (Cisco 7960) registering against a CME
 router with VLAN segmentation and DHCP-assigned addressing. PT 9 has
@@ -246,7 +246,7 @@ export function registerResources(server: McpServer): void {
     "agents-guide",
     "pt://docs/agents",
     {
-      title: "Agent guide for packet-tracer-mcp",
+      title: "Agent guide for stu-packet-tracer-mcp",
       description:
         "Operational playbook for LLMs using this server. READ THIS FIRST when a new conversation starts: cabling conventions, user vs transit LANs, recommended workflow, silent-failure patterns, escape hatches, debugging checklist.",
       mimeType: "text/markdown",

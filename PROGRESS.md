@@ -23,7 +23,7 @@
   - Extended `pt_export_report` (`src/report/model.ts`, `src/report/collect.ts`, `src/tools/export-report.ts`) with `troubleshooting` Before/After steps (before capture -> live IOS/PC fix -> after capture).
 - Registered all 3 tools in `src/tools/index.ts` (70 total tools), updated `README.md`, `CHANGELOG.md`, and `docs/TOOLS.md`, added 6 offline unit tests in `tests/fault-troubleshooting.test.ts`, and verified `bun run ci` (**411 pass, 0 fail**).
 ### 2026-11-17 Live Packet Tracer 9.0.1 Smoke Test & Real-World Fixes
-- Packaged and ran our English Bridge v1 Script Module inside live Cisco Packet Tracer 9.0.1 against `/home/fuih/network/Workshop_Static_Routing.pkt`.
+- Packaged and ran our English Bridge v1 Script Module inside live Cisco Packet Tracer 9.0.1 against `Workshop_Static_Routing.pkt`.
 - Caught and fixed 5 real-world PT 9 / Bun issues during live testing:
   1. `src/bridge/http-bridge.ts`: moved `lastSeenAt` updates strictly to PT poll/result routes (`/v1/next`, `/v1/result`, `/next`, `/result`) so `/v1/status` never false-reports `connected: true`.
   2. `src/bridge/http-bridge.ts`: set `idleTimeout: 120` on `Bun.serve()` and wired `req.signal` abort cleanup on `parkedWaiters` so Bun's default 10s idle timeout no longer aborts 25s `/v1/next` long-polls.
@@ -151,7 +151,7 @@
 - Committed as `feat: english-only codebase and CI hygiene (phase 1)` (`commit 2dd16aa`).
 
 ### 2026-11-17 Phase 0 Bootstrap
-- Cloned upstream repository from `https://github.com/Jcorderop02/packet-tracer-mcp` into `/home/fuih/Projects/stu-packet-tracer-mcp`.
+- Cloned upstream repository from `https://github.com/Jcorderop02/packet-tracer-mcp` into `stu-packet-tracer-mcp`.
 - Preserved full git history for proper attribution. Renamed remote `origin` -> `upstream`.
 - Inspected repository vs npm package:
   - Git repo contains 29 test suites (`tests/`), helper scripts (`scripts/`), and comprehensive docs (`docs/`).

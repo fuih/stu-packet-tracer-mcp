@@ -4,3 +4,5 @@ Juan Cordero Pascual
 jcorderop02
 lang="en"
 keepachangelog.com/en/
+SPANISH_ACCENT_REGEX =
+SPANISH_STOP_WORDS =

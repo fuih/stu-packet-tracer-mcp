@@ -1,63 +1,42 @@
-# Política de seguridad
+# Security Policy
 
-## Versiones soportadas
+## Supported Versions
 
-| Versión | Soportada |
-|---------|-----------|
-| 0.1.x   | Sí (rama actual, experimental) |
-| < 0.1   | No |
+| Version | Supported |
+| --- | --- |
+| `0.1.x` | Yes (current release branch, experimental) |
+| `< 0.1` | No |
 
-`packet-tracer-mcp` está marcado como **experimental**
-([WIP](https://www.repostatus.org/#wip)). Hasta que haya una release
-1.0 estable, sólo la rama actual recibe fixes.
+`stu-packet-tracer-mcp` is currently in active `0.1.x` development. Security fixes are applied to the `main` branch and included in the next `0.1.x` release.
 
-## Modelo de amenaza
+## Threat Model
 
-El servidor está pensado para correr **en tu propia máquina**, junto a
-una instancia local de Cisco Packet Tracer 9. Por defecto:
+This server is designed to run **locally on your workstation** alongside your local instance of Cisco Packet Tracer 9:
 
-- El transporte MCP escucha en `127.0.0.1:39001` (loopback).
-- El bridge HTTP a la webview de PT escucha en `127.0.0.1:54321`.
-- No se hacen conexiones salientes a Internet. Todo el JS que se
-  ejecuta en el Script Engine de PT viene del propio repositorio.
-- No hay telemetría, analytics ni phone-home.
+- **MCP HTTP server** binds to `127.0.0.1:39001` (loopback only by default), or runs over `--stdio`.
+- **Internal PT HTTP bridge** binds to `127.0.0.1:54321` (loopback only by default).
+- **Origin validation**: `/v1/next`, `/v1/result`, `/v1/status`, and legacy endpoints validate browser/webview origins against localhost and Packet Tracer Script Module origins (`this-sm:`, `pt-sm:`, `file-sm:`, `file://`), rejecting unauthorized cross-origin requests with `HTTP 403`.
+- **Optional shared token**: set `STU_PT_BRIDGE_TOKEN` in the MCP server environment and paste the same token in the Packet Tracer extension (`--token`) to require matching `X-Stu-Token` authentication on every bridge request.
+- **Zero telemetry**: no outbound connections, analytics, or remote phone-home calls are performed.
 
-Si configuras `PACKETTRACER_MCP_HOST=0.0.0.0` para acceso desde la LAN,
-la responsabilidad de proteger ese puerto pasa a ti (firewall,
-segmentación de red, autenticación a nivel de red). El servidor en sí
-**no implementa autenticación ni autorización** porque asume entorno
-local de confianza.
+> [!WARNING]
+> If you set `STU_PT_MCP_HOST=0.0.0.0` or `MCP_HOST=0.0.0.0` to expose the MCP server over a LAN, **you are responsible for firewalling and securing that port**. Use `--stdio` or `127.0.0.1` loopback whenever possible, and always enable `STU_PT_BRIDGE_TOKEN` if binding beyond localhost.
 
-## Reportar una vulnerabilidad
+## Reporting a Vulnerability
 
-Si encuentras una vulnerabilidad, por favor **no abras un issue
-público**. Escribe a:
+If you discover a security vulnerability in `stu-packet-tracer-mcp`, please do **not** disclose it in a public issue before a fix is ready.
 
-**jcorderop@hotmail.es**
+1. Use **GitHub Security Advisories** ("Report a vulnerability") on <https://github.com/fuih/stu-packet-tracer-mcp/security/advisories>.
+2. Include in your report:
+   - Description of the issue and its impact
+   - Clear reproduction steps or proof-of-concept
+   - Affected version (`0.1.x` or commit hash)
+   - Any suggested remediation if known
 
-con:
+We aim to acknowledge reports within 7 days and coordinate disclosure with the reporter once a fix is released.
 
-- Descripción del problema y su impacto.
-- Pasos para reproducirlo.
-- Versión afectada (`0.1.x` o commit hash).
-- Si tienes una propuesta de fix, mejor.
+## Out of Scope
 
-Compromiso de respuesta:
-
-- **Acuse de recibo**: en menos de 7 días naturales.
-- **Triaje y plan**: en menos de 14 días naturales desde el reporte.
-- **Fix o mitigación documentada**: depende de la severidad y de mi
-  disponibilidad (proyecto mantenido en ratos libres). Para
-  vulnerabilidades críticas, prioridad sobre cualquier otra cosa.
-
-Una vez publicado el fix, te mencionaré en el commit y en el
-`CHANGELOG.md` salvo que prefieras lo contrario.
-
-## Fuera de alcance
-
-- Vulnerabilidades en Cisco Packet Tracer en sí (esas van a Cisco).
-- Vulnerabilidades en dependencias de terceros sin demostrar impacto
-  concreto sobre `packet-tracer-mcp` (úsalas a través del feed de
-  GitHub Security Advisories).
-- "Issues" derivadas de exponer el puerto MCP a Internet sin firewall:
-  el modelo de amenaza es local.
+- Vulnerabilities inside Cisco Packet Tracer 9 itself (report those to Cisco PSIRT).
+- Third-party dependency vulnerabilities without a demonstrated exploit path against `stu-packet-tracer-mcp`.
+- Risks caused by intentionally exposing `0.0.0.0` without firewalling or authentication tokens.

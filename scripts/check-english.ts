@@ -7,9 +7,13 @@ const ROOTS_TO_CHECK = [
   "tests",
   "extension/src",
   "docs",
+  "scripts",
+  "AGENTS.md",
   "README.md",
   "CHANGELOG.md",
   "CONTRIBUTING.md",
+  "SECURITY.md",
+  "CODE_OF_CONDUCT.md",
 ];
 const ALLOWLIST_PATH = join(import.meta.dir, "english-allowlist.txt");
 
@@ -83,12 +87,10 @@ for (const root of ROOTS_TO_CHECK) {
           snippet: line.trim(),
         });
       } else if (SPANISH_STOP_WORDS.test(line)) {
-        // Double check it's not a common English abbreviation or code syntax (e.g. en-US, de-DE, format, etc)
-        // Check if the match is inside a comment or string
+        // Match standalone Spanish function words via word boundaries.
         const match = line.match(SPANISH_STOP_WORDS);
         if (match) {
           const word = match[0].toLowerCase();
-          // Avoid false positives like "de" in "destroy", which regex \b prevents, but standalone "de" might be in some English phrase
           violations.push({
             file,
             line: i + 1,
