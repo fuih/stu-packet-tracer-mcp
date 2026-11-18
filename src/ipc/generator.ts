@@ -282,17 +282,25 @@ export function enterCommandJs(deviceName: string, command: string, _mode = ""):
  * tail. The caller can therefore decide whether the captured slice is the
  * full transcript or just a tail.
  */
+const SAFE_BOOT_DISMISS_JS =
+  `var __out=String(cl.getOutput()||"");` +
+  `var __tail=__out.substring(Math.max(0,__out.length-350)).replace(/\\s+$/,"");` +
+  `if(/\\[yes\\/no\\]:?$/i.test(__tail)){` +
+    `cl.enterCommand("no");cl.enterCommand("");` +
+  `}else if(/Press RETURN to get started!?$/i.test(__tail)){` +
+    `cl.enterCommand("");` +
+  `}`;
+
 export function bulkCliJs(deviceName: string, cliBlock: string, tailChars = 2000): string {
   const lines = cliBlock.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
   const userCalls = lines.map(line => `cl.enterCommand(${jsStr(line)})`).join(";");
-  const dismissCalls = `cl.enterCommand("");cl.enterCommand("no");cl.enterCommand("")`;
   return withLabel(
     `Configuring ${deviceName}: ${describeCliBlock(lines)}`,
     `(function(){` +
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
       `var cl=d.getCommandLine();` +
-      `${dismissCalls};` +
+      `${SAFE_BOOT_DISMISS_JS}` +
       `var before=cl.getOutput().length;` +
       `${userCalls};` +
       `var full=cl.getOutput().substring(before);` +
@@ -342,9 +350,7 @@ export function dismissBootDialogJs(deviceName: string): string {
       `var d=${NET}.getDevice(${jsStr(deviceName)});` +
       `if(!d)return "ERR:not_found";` +
       `var cl=d.getCommandLine();` +
-      `cl.enterCommand("");` +
-      `cl.enterCommand("no");` +
-      `cl.enterCommand("");` +
+      `${SAFE_BOOT_DISMISS_JS}` +
       `return String(cl.getPrompt()||"");` +
     `})()`,
   );
