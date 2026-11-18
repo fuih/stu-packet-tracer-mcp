@@ -20,6 +20,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, X-Stu-Token, *",
+  "Access-Control-Expose-Headers": "X-Stu-Agent",
   "Access-Control-Max-Age": "86400",
 } as const;
 
@@ -79,8 +80,30 @@ export class Bridge {
   private bunServer: BunServer | null = null;
   private lastSeenAt: number | null = null;
   private inFlightId: string | null = null;
+  private agentName: string | null = null;
 
   constructor(private readonly _port: number = 54321, public readonly host: string = "127.0.0.1") {}
+
+  setAgentName(name: string | null | undefined): void {
+    const cleaned = typeof name === "string" ? name.trim() : "";
+    const next = cleaned.length > 0 ? cleaned : null;
+    if (this.agentName === next) return;
+    this.agentName = next;
+    // Wake idle long-poll waiters so the PT extension displays the active agent immediately.
+    if (this.inFlightId === null && this.queue.length === 0) {
+      while (this.parkedWaiters.length > 0) {
+        const w = this.parkedWaiters.shift();
+        if (w) {
+          clearTimeout(w.timer);
+          w.resolve(null);
+        }
+      }
+    }
+  }
+
+  getAgentName(): string | null {
+    return this.agentName;
+  }
 
   get port(): number {
     return this.bunServer?.port ?? this._port;
@@ -150,7 +173,14 @@ export class Bridge {
       pending: this.pendingWaiters.size,
       protocol: 1,
       version: "0.1.0",
+      agent: this.agentName,
     };
+  }
+
+  private jsonHeaders(): Record<string, string> {
+    return this.agentName
+      ? { ...HEADERS_JSON, "X-Stu-Agent": this.agentName }
+      : { ...HEADERS_JSON };
   }
 
   enqueue(cmd: string | CommandEnvelope): void {
@@ -297,7 +327,7 @@ export class Bridge {
     }
 
     if (method === "GET" && url.pathname === "/v1/status") {
-      return new Response(JSON.stringify(this.statusV1()), { headers: HEADERS_JSON });
+      return new Response(JSON.stringify(this.statusV1()), { headers: this.jsonHeaders() });
     }
 
     if (method === "GET" && url.pathname === "/v1/next") {
@@ -309,7 +339,7 @@ export class Bridge {
       if (this.inFlightId === null && this.queue.length > 0) {
         const cmd = this.queue.shift()!;
         this.inFlightId = cmd.id;
-        return new Response(JSON.stringify(cmd), { headers: HEADERS_JSON });
+        return new Response(JSON.stringify({ ...cmd, agent: this.agentName }), { headers: this.jsonHeaders() });
       }
 
       // Otherwise park the request and clean up immediately if the client aborts
@@ -330,14 +360,14 @@ export class Bridge {
           if (settled) return;
           settled = true;
           cleanup();
-          resolve(new Response(null, { status: 204, headers: HEADERS_JSON }));
+          resolve(new Response(null, { status: 204, headers: this.jsonHeaders() }));
         };
 
         const timer = setTimeout(() => {
           if (settled) return;
           settled = true;
           cleanup();
-          resolve(new Response(null, { status: 204, headers: HEADERS_JSON }));
+          resolve(new Response(null, { status: 204, headers: this.jsonHeaders() }));
         }, waitMs);
 
         const onReady = (cmd: CommandEnvelope | null) => {
@@ -345,9 +375,9 @@ export class Bridge {
           settled = true;
           cleanup();
           if (cmd) {
-            resolve(new Response(JSON.stringify(cmd), { headers: HEADERS_JSON }));
+            resolve(new Response(JSON.stringify({ ...cmd, agent: this.agentName }), { headers: this.jsonHeaders() }));
           } else {
-            resolve(new Response(null, { status: 204, headers: HEADERS_JSON }));
+            resolve(new Response(null, { status: 204, headers: this.jsonHeaders() }));
           }
         };
 

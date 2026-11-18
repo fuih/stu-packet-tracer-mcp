@@ -1,10 +1,8 @@
 /* ============================================================================
  * stu-pt-bridge v0.1.0 — Cyber Telemetry TUI Stylesheet (100% Offline)
- * Themes: claude | btop | abtop
  * ========================================================================== */
 
-:root,
-html[data-theme="claude"] {
+:root {
   --bg-base: #0c0d10;
   --bg-panel: #12141a;
   --bg-card: #181b22;
@@ -36,74 +34,6 @@ html[data-theme="claude"] {
   --text-strong: #ffffff;
   --text-muted: #a1a1aa;
   --text-dim: #71717a;
-}
-
-html[data-theme="btop"] {
-  --bg-base: #07090b;
-  --bg-panel: #0b0f13;
-  --bg-card: #11181e;
-  --bg-inset: #040608;
-  --bg-hover: #172229;
-  --border: #1b2c2a;
-  --border-soft: rgba(27, 44, 42, 0.75);
-  --accent: #2ee6a6;
-  --accent-light: #6ee7b7;
-  --accent-tint: rgba(46, 230, 166, 0.14);
-  --accent-border: rgba(46, 230, 166, 0.35);
-  --accent-glow: rgba(46, 230, 166, 0.35);
-  --accent-2: #f472b6;
-  --accent-2-bg: rgba(80, 7, 36, 0.5);
-  --accent-2-border: rgba(244, 114, 182, 0.4);
-  --ok: #34d399;
-  --ok-bg: rgba(16, 185, 129, 0.14);
-  --ok-border: rgba(16, 185, 129, 0.35);
-  --warn: #facc15;
-  --warn-bg: rgba(250, 204, 21, 0.12);
-  --warn-border: rgba(250, 204, 21, 0.3);
-  --err: #fb7185;
-  --err-bg: rgba(244, 63, 94, 0.15);
-  --err-border: rgba(244, 63, 94, 0.38);
-  --purple: #a78bfa;
-  --purple-bg: rgba(139, 92, 246, 0.15);
-  --purple-border: rgba(139, 92, 246, 0.35);
-  --text: #e2e8f0;
-  --text-strong: #ffffff;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
-}
-
-html[data-theme="abtop"] {
-  --bg-base: #080b10;
-  --bg-panel: #0e131c;
-  --bg-card: #151d2b;
-  --bg-inset: #05080d;
-  --bg-hover: #1b2638;
-  --border: #23334d;
-  --border-soft: rgba(35, 51, 77, 0.75);
-  --accent: #60a5fa;
-  --accent-light: #93c5fd;
-  --accent-tint: rgba(96, 165, 250, 0.14);
-  --accent-border: rgba(96, 165, 250, 0.35);
-  --accent-glow: rgba(96, 165, 250, 0.35);
-  --accent-2: #f59e0b;
-  --accent-2-bg: rgba(69, 26, 3, 0.55);
-  --accent-2-border: rgba(245, 158, 11, 0.4);
-  --ok: #34d399;
-  --ok-bg: rgba(16, 185, 129, 0.14);
-  --ok-border: rgba(16, 185, 129, 0.35);
-  --warn: #fbbf24;
-  --warn-bg: rgba(245, 158, 11, 0.12);
-  --warn-border: rgba(245, 158, 11, 0.3);
-  --err: #fb7185;
-  --err-bg: rgba(244, 63, 94, 0.15);
-  --err-border: rgba(244, 63, 94, 0.38);
-  --purple: #c084fc;
-  --purple-bg: rgba(168, 85, 247, 0.15);
-  --purple-border: rgba(168, 85, 247, 0.35);
-  --text: #e2e8f0;
-  --text-strong: #ffffff;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
 }
 
 * {
@@ -338,38 +268,6 @@ body {
   font-weight: 600;
 }
 
-.theme-switcher {
-  display: inline-flex;
-  align-items: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 2px;
-  gap: 2px;
-}
-
-.theme-pill {
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  font-family: inherit;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
-.theme-pill:hover {
-  color: var(--text-strong);
-}
-
-.theme-pill.is-active {
-  background: var(--accent-tint);
-  color: var(--accent);
-  border-color: var(--accent-border);
-  font-weight: 600;
-}
-
 .proto-badge {
   font-size: 11px;
   font-weight: 600;
@@ -472,6 +370,11 @@ body {
   font-weight: 500;
 }
 
+.meta-val.is-agent-live {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .meta-dot {
   width: 4px;
   height: 4px;
@@ -495,7 +398,7 @@ body {
 }
 
 .hud-card {
-  width: 190px;
+  width: 196px;
   flex-shrink: 0;
   position: relative;
   border-radius: 8px;
@@ -547,13 +450,8 @@ body {
   gap: 38px;
 }
 
-.bot-antennas {
-  top: -7px;
-}
-
-.bot-legs {
-  bottom: -7px;
-}
+.bot-antennas { top: -7px; }
+.bot-legs { bottom: -7px; }
 
 .bot-antennas span {
   width: 6px;
@@ -643,8 +541,8 @@ body[data-state="idle"] .bot-mouth {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--text);
   max-width: 100%;
 }
@@ -689,12 +587,12 @@ body[data-state="idle"] .hud-status-text { color: var(--text-muted); }
 .backoff-note {
   font-size: 10.5px;
   color: var(--warn);
-  margin-top: 2px;
+  margin-top: 3px;
   min-height: 15px;
 }
 
 body[data-state="connected"] .backoff-note {
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 /* Metrics right column */
@@ -936,13 +834,8 @@ body[data-state="connected"] .backoff-note {
   outline: none;
 }
 
-.text-input.has-url-actions {
-  padding-right: 78px;
-}
-
-.text-input.has-token-actions {
-  padding-right: 66px;
-}
+.text-input.has-url-actions { padding-right: 78px; }
+.text-input.has-token-actions { padding-right: 66px; }
 
 .text-input:focus {
   border-color: var(--accent);
@@ -1049,23 +942,6 @@ body[data-state="connected"] .backoff-note {
 
 .sec-btn:hover {
   background: var(--bg-hover);
-}
-
-.active-theme-pill {
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: var(--accent-tint);
-  border: 1px solid var(--accent-border);
-  color: var(--accent);
-  font-size: 10.5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.active-theme-pill strong {
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
 }
 
 /* ============================================================================

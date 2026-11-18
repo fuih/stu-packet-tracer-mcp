@@ -16,6 +16,7 @@ export const registerBridgeStatusTool = defineTool({
     const bootstrap = buildBootstrap(s.port);
     const lines = [
       `connected: ${s.connected}`,
+      `agent:     ${v1.agent ?? "none"}`,
       `protocol:  v${v1.protocol}`,
       `version:   ${v1.version}`,
       `port:      ${s.port}`,
@@ -31,6 +32,7 @@ export const registerBridgeStatusTool = defineTool({
       text: lines.join("\n"),
       structured: {
         connected: s.connected,
+        agent: v1.agent ?? null,
         protocol: v1.protocol,
         version: v1.version,
         port: s.port,

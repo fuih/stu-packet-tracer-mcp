@@ -8,6 +8,7 @@ export interface CommandEnvelope {
   readonly code: string;
   readonly label?: string;
   readonly timeoutMs: number;
+  readonly agent?: string | null;
 }
 
 export interface ResultEnvelope {
@@ -24,4 +25,5 @@ export interface BridgeV1Status {
   readonly pending: number;
   readonly protocol: 1;
   readonly version: string;
+  readonly agent?: string | null;
 }

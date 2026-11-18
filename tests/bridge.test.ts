@@ -41,7 +41,39 @@ describe("Bridge v1 protocol", () => {
     expect(pollRes.status).toBe(204);
     const statusAfter = (await (await fetch(`${baseUrl}/v1/status`)).json()) as BridgeV1Status;
     expect(statusAfter.connected).toBe(true);
+    expect(statusAfter.agent).toBeNull();
     expect(isAllowedOrigin("this-sm:index.html")).toBe(true);
+  });
+
+  test("setAgentName exposes agent in /v1/status, X-Stu-Agent header, CommandEnvelope, and wakes idle long-poll", async () => {
+    const parked = fetch(`${baseUrl}/v1/next?wait=3000`);
+    await new Promise(r => setTimeout(r, 20));
+
+    const t0 = Date.now();
+    bridge.setAgentName("Antigravity");
+    const pollRes = await parked;
+    expect(Date.now() - t0).toBeLessThan(150);
+    expect(pollRes.status).toBe(204);
+    expect(pollRes.headers.get("X-Stu-Agent")).toBe("Antigravity");
+
+    const statusRes = await fetch(`${baseUrl}/v1/status`);
+    expect(statusRes.headers.get("X-Stu-Agent")).toBe("Antigravity");
+    const statusJson = (await statusRes.json()) as BridgeV1Status;
+    expect(statusJson.agent).toBe("Antigravity");
+
+    const cmdPoll = fetch(`${baseUrl}/v1/next?wait=3000`);
+    await new Promise(r => setTimeout(r, 20));
+    const cmdPromise = bridge.sendAndWait("1+1", { label: "agent test", timeoutMs: 2000 });
+    const envRes = await cmdPoll;
+    const env = (await envRes.json()) as CommandEnvelope;
+    expect(env.agent).toBe("Antigravity");
+
+    await fetch(`${baseUrl}/v1/result`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: env.id, ok: true, data: "2", elapsedMs: 3 }),
+    });
+    expect(await cmdPromise).toBe("2");
   });
 
   test("long-poll /v1/next returns within ~50ms when work arrives", async () => {

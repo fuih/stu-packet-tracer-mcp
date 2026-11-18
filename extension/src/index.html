@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="claude">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -47,13 +47,7 @@
           </span>
         </div>
 
-        <div class="theme-switcher" role="group" aria-label="Theme selector">
-          <button class="theme-pill is-active" type="button" data-theme-choice="claude">claude</button>
-          <button class="theme-pill" type="button" data-theme-choice="btop">btop</button>
-          <button class="theme-pill" type="button" data-theme-choice="abtop">abtop</button>
-        </div>
-
-        <span id="protocol-badge" class="proto-badge proto-muted">v--</span>
+        <span id="protocol-badge" class="proto-badge">V--</span>
       </div>
     </header>
 
@@ -69,12 +63,14 @@
           <div class="panel-meta">
             <span>HOST: <strong id="meta-host" class="meta-val">127.0.0.1:54321</strong></span>
             <span class="meta-dot"></span>
-            <span>CHANNEL: <strong id="meta-channel" class="meta-val">IPC/AUTO</strong></span>
+            <span>AGENT: <strong id="meta-agent" class="meta-val">--</strong></span>
+            <span class="meta-dot hide-sm"></span>
+            <span class="hide-sm">CHANNEL: <strong id="meta-channel" class="meta-val">IPC/AUTO</strong></span>
           </div>
         </div>
 
         <div class="telemetry-grid">
-          <!-- Left: Mascot HUD & Retry Status -->
+          <!-- Left: Mascot HUD & Agent / Connection Status -->
           <div class="hud-card">
             <span class="hud-corner tl"></span>
             <span class="hud-corner tr"></span>
@@ -213,11 +209,6 @@
               </button>
               <button id="clear-btn" class="sec-btn" type="button">Clear</button>
             </div>
-
-            <div class="active-theme-pill">
-              <span class="muted-text">Active Theme:</span>
-              <strong id="active-theme-name">claude</strong>
-            </div>
           </div>
         </div>
       </section>
@@ -263,8 +254,6 @@
         <span class="hotkey"><kbd>s</kbd> <span>stop/start</span></span>
         <span class="bullet">&bull;</span>
         <span class="hotkey"><kbd>c</kbd> <span>clear</span></span>
-        <span class="bullet">&bull;</span>
-        <span class="hotkey"><kbd>t</kbd> <span>theme</span></span>
         <span class="bullet">&bull;</span>
         <span class="hotkey"><kbd>u</kbd> <span>url</span></span>
         <span class="bullet hide-sm">&bull;</span>

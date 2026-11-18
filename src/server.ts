@@ -89,6 +89,19 @@ interface SessionRecord {
   lastSeenAt: number;
 }
 
+function formatAgentName(info: { name?: string; title?: string } | undefined): string | null {
+  const title = typeof info?.title === "string" ? info.title.trim() : "";
+  const name = typeof info?.name === "string" ? info.name.trim() : "";
+  return title || name || null;
+}
+
+function attachAgentTracking(mcpServer: McpServer, bridge: Bridge): void {
+  mcpServer.server.oninitialized = () => {
+    const label = formatAgentName(mcpServer.server.getClientVersion());
+    if (label) bridge.setAgentName(label);
+  };
+}
+
 export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const bridge = new Bridge(opts.bridgePort);
   bridge.start();
@@ -113,6 +126,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       register({ bridge, server: mcpServer });
     }
     registerResources(mcpServer);
+    attachAgentTracking(mcpServer, bridge);
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => crypto.randomUUID(),
@@ -126,6 +140,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       onsessionclosed: (id) => {
         const rec = sessions.get(id);
         sessions.delete(id);
+        if (sessions.size === 0) bridge.setAgentName(null);
         rec?.mcpServer.close().catch(() => {});
       },
     });
@@ -135,6 +150,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       if (id) {
         const rec = sessions.get(id);
         sessions.delete(id);
+        if (sessions.size === 0) bridge.setAgentName(null);
         rec?.mcpServer.close().catch(() => {});
       }
     };
@@ -161,7 +177,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   if (typeof sweepTimer.unref === "function") sweepTimer.unref();
 
   const httpServer: HttpServer = createServer((req, res) => {
-    handleHttp(req, res, sessions, buildSession).catch((err) => {
+    handleHttp(req, res, sessions, buildSession, bridge).catch((err) => {
       writeJsonError(res, 500, "internal_error", err instanceof Error ? err.message : String(err));
     });
   });
@@ -188,6 +204,7 @@ async function handleHttp(
   res: ServerResponse,
   sessions: Map<string, SessionRecord>,
   buildSession: () => Promise<SessionRecord>,
+  bridge: Bridge,
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   if (url.pathname !== "/mcp") {
@@ -227,6 +244,9 @@ async function handleHttp(
   // creates a fresh session. Anything else is a client bug — surface it as
   // 400 so the SDK doesn't silently retry forever.
   if (req.method === "POST" && isInitializeRequest(body)) {
+    const clientInfo = (body as { params?: { clientInfo?: { name?: string; title?: string } } })?.params?.clientInfo;
+    const label = formatAgentName(clientInfo);
+    if (label) bridge.setAgentName(label);
     const rec = await buildSession();
     rec.lastSeenAt = Date.now();
     await rec.transport.handleRequest(req, res, body);
@@ -301,6 +321,7 @@ export async function startStdioServer(opts: StdioServerOptions): Promise<Runnin
     register({ bridge, server: mcpServer });
   }
   registerResources(mcpServer);
+  attachAgentTracking(mcpServer, bridge);
 
   const transport = new StdioServerTransport();
   await mcpServer.connect(transport);

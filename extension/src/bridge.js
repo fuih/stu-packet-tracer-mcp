@@ -2,10 +2,10 @@
  * Student MCP Bridge — Cyber Telemetry TUI WebView Controller (bridge.js)
  *
  * Implements Bridge Protocol v1 (long-poll /v1/next + JSON /v1/result with
- * correlation IDs) with automatic fallback to legacy /next polling,
- * exponential reconnect backoff (1s -> 2s -> 5s -> 10s), live telemetry cards,
- * 24-bar pulse visualizer, filterable log stream, interactive CLI prompt,
- * and 3 switchable TUI themes (claude | btop | abtop).
+ * correlation IDs and live AI agent identification via X-Stu-Agent / envelope.agent),
+ * automatic fallback to legacy /next polling, exponential reconnect backoff
+ * (1s -> 2s -> 5s -> 10s), live telemetry cards, 24-bar pulse visualizer,
+ * filterable log stream, and interactive CLI prompt.
  */
 (function () {
   "use strict";
@@ -15,7 +15,6 @@
   var LEGACY_POLL_MS = 500;
   var MAX_LOG_ENTRIES = 250;
   var PULSE_LEN = 24;
-  var THEMES = ["claude", "btop", "abtop"];
   var LABEL_RE = /^\s*\/\*\s*([^*][\s\S]*?)\s*\*\/\s*/;
 
   // DOM references
@@ -37,8 +36,8 @@
   var backoffNoteEl = document.getElementById("backoff-note");
   var protocolBadge = document.getElementById("protocol-badge");
   var metaHostEl = document.getElementById("meta-host");
+  var metaAgentEl = document.getElementById("meta-agent");
   var metaChannelEl = document.getElementById("meta-channel");
-  var activeThemeNameEl = document.getElementById("active-theme-name");
 
   var clockEl = document.getElementById("clock-text");
   var uptimeEl = document.getElementById("uptime-text");
@@ -53,7 +52,6 @@
   var pulseBarsEl = document.getElementById("pulse-bars");
   var logListEl = document.getElementById("log-list");
 
-  var themeButtons = document.querySelectorAll("[data-theme-choice]");
   var filterButtons = document.querySelectorAll("[data-filter]");
 
   // Bridge & telemetry state
@@ -62,12 +60,13 @@
   var retryTimer = null;
   var backoffIndex = 0;
   var wasConnected = false;
+  var protocolMode = "none";
+  var activeAgent = null;
   var commandCount = 0;
   var okCount = 0;
   var errCount = 0;
   var totalLatencyMs = 0;
   var pulseSamples = [];
-  var themeName = "claude";
   var autoScroll = true;
   var startedAt = Date.now();
   var pendingResolvers = {};
@@ -105,6 +104,39 @@
     if (!metaHostEl) return;
     var hostOnly = getBaseUrl().replace(/^https?:\/\//i, "");
     metaHostEl.textContent = hostOnly || "127.0.0.1:54321";
+  }
+
+  function updateAgentDisplay(nextName, shouldLog) {
+    var normalized = typeof nextName === "string" && nextName.trim() ? nextName.trim() : null;
+    var changed = activeAgent !== normalized;
+    activeAgent = normalized;
+
+    if (metaAgentEl) {
+      metaAgentEl.textContent = activeAgent || "--";
+      metaAgentEl.className = activeAgent ? "meta-val is-agent-live" : "meta-val";
+    }
+
+    if (changed && shouldLog && activeAgent) {
+      appendLog("sys", "AI agent connected: " + activeAgent);
+    }
+
+    if (wasConnected) {
+      applyConnectedHudText();
+    }
+  }
+
+  function applyConnectedHudText() {
+    if (activeAgent) {
+      setStatus("connected", activeAgent, "Connected: " + activeAgent);
+      if (backoffNoteEl) {
+        backoffNoteEl.textContent = "agent connected (" + (protocolMode === "legacy" ? "legacy" : "v1") + ")";
+      }
+    } else {
+      setStatus("connected", "Server ready", "Connected");
+      if (backoffNoteEl) {
+        backoffNoteEl.textContent = "awaiting AI agent...";
+      }
+    }
   }
 
   function initPulseBars() {
@@ -273,6 +305,7 @@
   }
 
   function setProtocol(mode) {
+    protocolMode = mode;
     if (mode === "v1") {
       if (protocolBadge) {
         protocolBadge.className = "proto-badge proto-v1";
@@ -292,24 +325,6 @@
       }
       if (metaChannelEl) metaChannelEl.textContent = "IPC/AUTO";
     }
-  }
-
-  function setTheme(name) {
-    if (THEMES.indexOf(name) < 0) return;
-    themeName = name;
-    document.documentElement.setAttribute("data-theme", name);
-    if (activeThemeNameEl) activeThemeNameEl.textContent = name;
-    for (var i = 0; i < themeButtons.length; i++) {
-      var btn = themeButtons[i];
-      var choice = btn.getAttribute("data-theme-choice");
-      btn.className = choice === name ? "theme-pill is-active" : "theme-pill";
-    }
-  }
-
-  function cycleTheme() {
-    var idx = (THEMES.indexOf(themeName) + 1) % THEMES.length;
-    setTheme(THEMES[idx]);
-    appendLog("sys", "Switched theme to " + THEMES[idx]);
   }
 
   function setFilter(filterName) {
@@ -341,11 +356,11 @@
     activeXhr = xhr;
     var finished = false;
 
-    function done(err, status, text) {
+    function done(err, status, text, agentHeader) {
       if (finished) return;
       finished = true;
       if (activeXhr === xhr) activeXhr = null;
-      callback(err, status, text);
+      callback(err, status, text, agentHeader);
     }
 
     xhr.open(method, url, true);
@@ -359,22 +374,26 @@
     }
 
     xhr.onload = function () {
-      done(null, xhr.status, xhr.responseText);
+      var agentHdr = null;
+      try {
+        agentHdr = xhr.getResponseHeader("X-Stu-Agent");
+      } catch (e) {}
+      done(null, xhr.status, xhr.responseText, agentHdr);
     };
     xhr.onerror = function () {
-      done(new Error("Network error"), 0, "");
+      done(new Error("Network error"), 0, "", null);
     };
     xhr.ontimeout = function () {
-      done(new Error("Request timeout"), 0, "");
+      done(new Error("Request timeout"), 0, "", null);
     };
     xhr.onabort = function () {
-      done(new Error("Aborted"), 0, "");
+      done(new Error("Aborted"), 0, "", null);
     };
 
     try {
       xhr.send(body === undefined ? null : body);
     } catch (e) {
-      done(e, 0, "");
+      done(e, 0, "", null);
     }
   }
 
@@ -451,6 +470,7 @@
       wasConnected = false;
     }
 
+    updateAgentDisplay(null, false);
     setProtocol("none");
     setStatus("waiting", "Waiting for client...", "Awaiting Bridge");
     if (backoffNoteEl) backoffNoteEl.textContent = "retry scheduled: " + (delay / 1000) + "s";
@@ -462,21 +482,24 @@
     }, delay);
   }
 
-  function markConnected(mode) {
+  function markConnected(mode, maybeAgent) {
     backoffIndex = 0;
-    if (backoffNoteEl) backoffNoteEl.textContent = "long-poll heartbeat active";
     setProtocol(mode);
-    setStatus("connected", "Bridge connected", "Connected");
     if (!wasConnected) {
       wasConnected = true;
       appendLog("sys", "Connected to " + getBaseUrl() + " (" + mode + ")");
+    }
+    if (maybeAgent !== undefined) {
+      updateAgentDisplay(maybeAgent, true);
+    } else {
+      applyConnectedHudText();
     }
   }
 
   function pollV1() {
     if (!running) return;
     var url = getBaseUrl() + "/v1/next?wait=" + LONG_POLL_WAIT_MS;
-    xhrRequest("GET", url, null, LONG_POLL_WAIT_MS + 5000, function (err, status, text) {
+    xhrRequest("GET", url, null, LONG_POLL_WAIT_MS + 5000, function (err, status, text, agentHdr) {
       if (!running) return;
 
       if (err) {
@@ -492,21 +515,23 @@
       }
 
       if (status === 204) {
-        markConnected("v1");
+        markConnected("v1", agentHdr);
         pollV1();
         return;
       }
 
       if (status === 200 && text) {
-        markConnected("v1");
         var env;
         try {
           env = JSON.parse(text);
         } catch (parseErr) {
+          markConnected("v1", agentHdr);
           appendLog("err", "Malformed JSON envelope from server.");
           pollV1();
           return;
         }
+
+        markConnected("v1", env.agent !== undefined ? env.agent : agentHdr);
 
         var label = extractLabel(env);
         setLastLabel(label);
@@ -538,7 +563,7 @@
         scheduleReconnect(err ? err.message : "HTTP " + status);
         return;
       }
-      markConnected("legacy");
+      markConnected("legacy", undefined);
       if (status === 200 && text) {
         var label = extractLabel({ code: text });
         setLastLabel(label);
@@ -563,17 +588,22 @@
     if (!running) return;
     updateHostMeta();
     var statusUrl = getBaseUrl() + "/v1/status";
-    xhrRequest("GET", statusUrl, null, 4000, function (err, status) {
+    xhrRequest("GET", statusUrl, null, 4000, function (err, status, text, agentHdr) {
       if (!running) return;
       if (err) {
         scheduleReconnect(err.message);
         return;
       }
       if (status === 200) {
-        markConnected("v1");
+        var parsedAgent = agentHdr;
+        try {
+          var s = JSON.parse(text || "{}");
+          if (s && s.agent !== undefined) parsedAgent = s.agent;
+        } catch (e) {}
+        markConnected("v1", parsedAgent);
         pollV1();
       } else if (status === 404) {
-        markConnected("legacy");
+        markConnected("legacy", null);
         pollLegacy();
       } else {
         scheduleReconnect("HTTP " + status);
@@ -592,6 +622,7 @@
       activeXhr = null;
     }
     wasConnected = false;
+    updateAgentDisplay(null, false);
     setProtocol("none");
     if (backoffNoteEl) backoffNoteEl.textContent = "bridge paused";
     setStatus("idle", "Stopped", "Paused");
@@ -658,20 +689,13 @@
     var arg = parts.slice(1).join(" ").trim();
 
     if (verb === "help" || verb === "?") {
-      appendLog("sys", "Commands: start | stop | clear | theme [claude|btop|abtop] | filter [all|sys|ipc|err] | ping | status | url <endpoint>");
+      appendLog("sys", "Commands: start | stop | clear | filter [all|sys|ipc|err] | ping | status | url <endpoint> | token <secret|clear>");
     } else if (verb === "start") {
       startBridge();
     } else if (verb === "stop") {
       stopBridge();
     } else if (verb === "clear" || verb === "cls") {
       clearLogs();
-    } else if (verb === "theme") {
-      if (arg && THEMES.indexOf(arg.toLowerCase()) >= 0) {
-        setTheme(arg.toLowerCase());
-        appendLog("sys", "Theme set to " + arg.toLowerCase());
-      } else {
-        cycleTheme();
-      }
     } else if (verb === "filter") {
       var f = arg.toLowerCase();
       if (f === "all" || f === "sys" || f === "ipc" || f === "err") {
@@ -684,18 +708,25 @@
       appendLog(
         "sys",
         "State=" + (running ? (wasConnected ? "connected" : "waiting") : "stopped") +
+          " | agent=" + (activeAgent || "none") +
           " | cmds=" + commandCount +
           " (ok=" + okCount + ", err=" + errCount + ")" +
           " | endpoint=" + getBaseUrl()
       );
     } else if (verb === "ping") {
       var pingStart = Date.now();
-      xhrRequest("GET", getBaseUrl() + "/v1/status", null, 3000, function (err, status) {
+      xhrRequest("GET", getBaseUrl() + "/v1/status", null, 3000, function (err, status, text, agentHdr) {
         var rtt = Date.now() - pingStart;
         if (err || status >= 400) {
           appendLog("err", "Ping failed (" + (err ? err.message : "HTTP " + status) + ")", rtt);
         } else {
-          appendLog("ok", "Ping /v1/status HTTP " + status + " ready", rtt);
+          var pingAgent = agentHdr;
+          try {
+            var ps = JSON.parse(text || "{}");
+            if (ps && ps.agent !== undefined) pingAgent = ps.agent;
+          } catch (e) {}
+          if (pingAgent !== undefined) updateAgentDisplay(pingAgent, true);
+          appendLog("ok", "Ping /v1/status HTTP " + status + (activeAgent ? " (agent: " + activeAgent + ")" : " ready"), rtt);
         }
       });
     } else if (verb === "url" && arg) {
@@ -751,14 +782,6 @@
     });
   }
 
-  for (var t = 0; t < themeButtons.length; t++) {
-    (function (btn) {
-      btn.addEventListener("click", function () {
-        setTheme(btn.getAttribute("data-theme-choice"));
-      });
-    })(themeButtons[t]);
-  }
-
   for (var fIdx = 0; fIdx < filterButtons.length; fIdx++) {
     (function (btn) {
       btn.addEventListener("click", function () {
@@ -791,8 +814,6 @@
       else startBridge();
     } else if (k === "c") {
       clearLogs();
-    } else if (k === "t") {
-      cycleTheme();
     } else if (k === "u") {
       ev.preventDefault();
       if (serverUrlInput) {
@@ -818,11 +839,10 @@
   initPulseBars();
   renderPulseBars();
   renderHealth();
-  setTheme("claude");
   setFilter("all");
   setProtocol("none");
   setStatus("waiting", "Waiting for client...", "Awaiting Bridge");
-  appendLog("sys", "stu-pt-bridge TUI initialized (themes: claude / btop / abtop).");
+  appendLog("sys", "stu-pt-bridge monitor initialized.");
   appendLog("auth", getToken() ? "STU_PT_BRIDGE_TOKEN loaded from field." : "STU_PT_BRIDGE_TOKEN unset — local loopback mode.");
   detectAndStart();
 })();
