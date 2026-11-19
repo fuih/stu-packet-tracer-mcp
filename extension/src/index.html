@@ -53,12 +53,12 @@
 
     <!-- Main Dashboard -->
     <main class="dashboard">
-      <!-- Panel 1: Bridge Monitor Telemetry -->
-      <section class="panel" aria-label="Bridge Monitor Telemetry">
+      <!-- Panel 1: Live Lab & Bridge Telemetry -->
+      <section class="panel" aria-label="Lab and Bridge Telemetry">
         <div class="panel-header">
           <div class="panel-title-wrap">
             <span class="panel-num">1</span>
-            <h2 class="panel-title">bridge monitor telemetry</h2>
+            <h2 class="panel-title">lab &amp; bridge telemetry</h2>
           </div>
           <div class="panel-meta">
             <span>HOST: <strong id="meta-host" class="meta-val">127.0.0.1:54321</strong></span>
@@ -102,11 +102,39 @@
             <div id="backoff-note" class="backoff-note">connecting...</div>
           </div>
 
-          <!-- Right: 4 Metric Cards + Pulse Telemetry -->
+          <!-- Right: 4 Practical PT Lab Cards + Live Node Strip -->
           <div class="metrics-col">
             <div class="metric-cards">
+              <!-- Card 1: Active .pkt File & Sim State -->
               <div class="metric-card">
-                <span class="metric-label">COMMANDS TOTAL</span>
+                <span class="metric-label">WORKSPACE</span>
+                <div id="pkt-name" class="workspace-file" title="unsaved.pkt">unsaved.pkt</div>
+                <span id="sim-badge" class="sub-chip chip-ok">REALTIME</span>
+              </div>
+
+              <!-- Card 2: Live Topology Count -->
+              <div class="metric-card">
+                <span class="metric-label">TOPOLOGY</span>
+                <div class="metric-body">
+                  <span id="topo-count" class="metric-big">0</span>
+                  <span class="metric-unit">nodes</span>
+                </div>
+                <span id="topo-breakdown" class="metric-dim-line">0R &middot; 0SW &middot; 0PC</span>
+              </div>
+
+              <!-- Card 3: Physical Links & Power -->
+              <div class="metric-card">
+                <span class="metric-label">LINKS &amp; POWER</span>
+                <div class="metric-body">
+                  <span id="link-count" class="metric-big">0</span>
+                  <span class="metric-unit">links</span>
+                </div>
+                <span id="power-state" class="sub-chip chip-muted">scanning...</span>
+              </div>
+
+              <!-- Card 4: IPC Commands & Avg Speed -->
+              <div class="metric-card">
+                <span class="metric-label">IPC COMMANDS</span>
                 <div class="metric-body">
                   <span id="cmd-count" class="metric-big">0</span>
                   <span class="metric-sub">
@@ -114,52 +142,30 @@
                     <span class="text-err">err:<span id="err-count">0</span></span>
                   </span>
                 </div>
-              </div>
-
-              <div class="metric-card">
-                <div class="metric-label-row">
-                  <span class="metric-label">HEALTH</span>
-                  <span id="health-pct" class="metric-pct">--%</span>
-                </div>
-                <div id="health-segments" class="health-bar" aria-label="Bridge command health">
-                  <span class="health-seg"></span><span class="health-seg"></span>
-                  <span class="health-seg"></span><span class="health-seg"></span>
-                  <span class="health-seg"></span><span class="health-seg"></span>
-                  <span class="health-seg"></span><span class="health-seg"></span>
-                  <span class="health-seg"></span><span class="health-seg"></span>
-                </div>
-              </div>
-
-              <div class="metric-card">
-                <span class="metric-label">BRIDGE LATENCY</span>
-                <div class="metric-body">
-                  <span id="last-ms" class="metric-big muted-num">--</span>
-                  <span class="metric-unit">ms</span>
-                  <span class="metric-avg">(avg: <span id="avg-ms">--ms</span>)</span>
-                </div>
-              </div>
-
-              <div class="metric-card">
-                <span class="metric-label">CHANNEL STATE</span>
-                <div class="state-row">
-                  <span class="state-chevron">&gt;</span>
-                  <span id="last-label" class="state-value" title="idle">idle</span>
-                </div>
+                <span class="metric-dim-line">avg: <span id="avg-ms">--ms</span></span>
               </div>
             </div>
 
-            <!-- Pulse Visualizer -->
-            <div class="pulse-card">
-              <div class="pulse-header">
-                <span class="pulse-title">
-                  <svg class="icon-xs accent-icon" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            <!-- Live Lab Node Health Strip (clickable quick inspect) -->
+            <div class="node-strip-card">
+              <div class="node-strip-header">
+                <span class="node-strip-title">
+                  <svg class="icon-xs accent-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="2" y="3" width="20" height="7" rx="1"></rect>
+                    <rect x="2" y="14" width="20" height="7" rx="1"></rect>
+                    <line x1="6" y1="6.5" x2="6.01" y2="6.5"></line>
+                    <line x1="6" y1="17.5" x2="6.01" y2="17.5"></line>
                   </svg>
-                  PULSE TELEMETRY
+                  LIVE LAB NODES
                 </span>
-                <span id="pulse-sub" class="pulse-sub">Realtime Handshake Buffer</span>
+                <div class="node-strip-actions">
+                  <span id="node-strip-hint" class="node-strip-hint">click a node to inspect ports</span>
+                  <button id="refresh-topo-btn" class="inline-btn" type="button" title="Refresh PT lab snapshot">refresh</button>
+                </div>
               </div>
-              <div id="pulse-bars" class="pulse-bars" aria-hidden="true"></div>
+              <div id="node-strip" class="node-strip">
+                <span class="node-empty">waiting for Packet Tracer workspace...</span>
+              </div>
             </div>
           </div>
         </div>
@@ -254,6 +260,8 @@
         <span class="hotkey"><kbd>s</kbd> <span>stop/start</span></span>
         <span class="bullet">&bull;</span>
         <span class="hotkey"><kbd>c</kbd> <span>clear</span></span>
+        <span class="bullet">&bull;</span>
+        <span class="hotkey"><kbd>r</kbd> <span>refresh</span></span>
         <span class="bullet">&bull;</span>
         <span class="hotkey"><kbd>u</kbd> <span>url</span></span>
         <span class="bullet hide-sm">&bull;</span>

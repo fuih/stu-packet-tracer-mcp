@@ -2,10 +2,10 @@
  * Student MCP Bridge — Cyber Telemetry TUI WebView Controller (bridge.js)
  *
  * Implements Bridge Protocol v1 (long-poll /v1/next + JSON /v1/result with
- * correlation IDs and live AI agent identification via X-Stu-Agent / envelope.agent),
- * automatic fallback to legacy /next polling, exponential reconnect backoff
- * (1s -> 2s -> 5s -> 10s), live telemetry cards, 24-bar pulse visualizer,
- * filterable log stream, and interactive CLI prompt.
+ * correlation IDs and live AI agent identification), legacy /next fallback,
+ * exponential reconnect backoff (1s -> 2s -> 5s -> 10s), live Packet Tracer
+ * workspace telemetry (open .pkt, SIM state, device/link/power counts, and
+ * clickable node health chips), filterable stream log, and CLI prompt.
  */
 (function () {
   "use strict";
@@ -13,8 +13,8 @@
   var BACKOFF_STEPS_MS = [1000, 2000, 5000, 10000];
   var LONG_POLL_WAIT_MS = 25000;
   var LEGACY_POLL_MS = 500;
+  var TELEMETRY_POLL_MS = 3000;
   var MAX_LOG_ENTRIES = 250;
-  var PULSE_LEN = 24;
   var LABEL_RE = /^\s*\/\*\s*([^*][\s\S]*?)\s*\*\/\s*/;
 
   // DOM references
@@ -25,6 +25,7 @@
   var toggleBtn = document.getElementById("toggle-btn");
   var toggleLabel = document.getElementById("toggle-label");
   var clearBtn = document.getElementById("clear-btn");
+  var refreshTopoBtn = document.getElementById("refresh-topo-btn");
   var autoscrollBtn = document.getElementById("autoscroll-btn");
   var autoscrollLabel = document.getElementById("autoscroll-label");
   var cliInput = document.getElementById("cli-input");
@@ -41,15 +42,18 @@
 
   var clockEl = document.getElementById("clock-text");
   var uptimeEl = document.getElementById("uptime-text");
+  var pktNameEl = document.getElementById("pkt-name");
+  var simBadgeEl = document.getElementById("sim-badge");
+  var topoCountEl = document.getElementById("topo-count");
+  var topoBreakdownEl = document.getElementById("topo-breakdown");
+  var linkCountEl = document.getElementById("link-count");
+  var powerStateEl = document.getElementById("power-state");
   var cmdCountEl = document.getElementById("cmd-count");
   var okCountEl = document.getElementById("ok-count");
   var errCountEl = document.getElementById("err-count");
-  var healthSegmentsEl = document.getElementById("health-segments");
-  var healthPctEl = document.getElementById("health-pct");
-  var lastMsEl = document.getElementById("last-ms");
   var avgMsEl = document.getElementById("avg-ms");
-  var lastLabelEl = document.getElementById("last-label");
-  var pulseBarsEl = document.getElementById("pulse-bars");
+  var nodeStripEl = document.getElementById("node-strip");
+  var nodeStripHintEl = document.getElementById("node-strip-hint");
   var logListEl = document.getElementById("log-list");
 
   var filterButtons = document.querySelectorAll("[data-filter]");
@@ -66,10 +70,10 @@
   var okCount = 0;
   var errCount = 0;
   var totalLatencyMs = 0;
-  var pulseSamples = [];
   var autoScroll = true;
   var startedAt = Date.now();
   var pendingResolvers = {};
+  var latestLabData = null;
 
   function getBaseUrl() {
     var raw = (serverUrlInput.value || "http://127.0.0.1:54321").trim();
@@ -139,64 +143,117 @@
     }
   }
 
-  function initPulseBars() {
-    if (!pulseBarsEl) return;
-    pulseBarsEl.innerHTML = "";
-    for (var i = 0; i < PULSE_LEN; i++) {
-      pulseSamples.push({ ms: 0, ok: true, active: false });
-      var bar = document.createElement("span");
-      bar.className = "pulse-bar";
-      bar.style.height = "4px";
-      pulseBarsEl.appendChild(bar);
+  function inspectNodeToStream(dev) {
+    if (!dev) return;
+    var parts = [];
+    if (dev.ports && dev.ports.length > 0) {
+      for (var i = 0; i < dev.ports.length; i++) {
+        var p = dev.ports[i];
+        var desc = p.name + (p.ip ? "=" + p.ip : "") + (p.linked ? " [up]" : "");
+        parts.push(desc);
+      }
     }
+    var summary =
+      dev.name +
+      " (" + (dev.model || dev.role) + ", " + (dev.powered ? "ON" : "POWER OFF") +
+      ", " + dev.linkedCount + "/" + dev.portCount + " ports linked)" +
+      (parts.length > 0 ? " -> " + parts.join(", ") : " -> no linked/addressed ports");
+    appendLog(dev.powered ? "sys" : "err", summary);
   }
 
-  function renderPulseBars() {
-    if (!pulseBarsEl) return;
-    var bars = pulseBarsEl.children;
-    var maxMs = 40;
-    var i;
-    for (i = 0; i < pulseSamples.length; i++) {
-      if (pulseSamples[i].ms > maxMs) maxMs = pulseSamples[i].ms;
+  window.__stuLabTelemetry = function (data) {
+    if (!data) return;
+    latestLabData = data;
+
+    if (pktNameEl) {
+      pktNameEl.textContent = data.pktName || "unsaved.pkt";
+      pktNameEl.title = data.pktName || "unsaved.pkt";
     }
-    for (i = 0; i < bars.length; i++) {
-      var sample = pulseSamples[i];
-      var barEl = bars[i];
-      if (!sample || !sample.active) {
-        barEl.style.height = "4px";
-        barEl.className = "pulse-bar";
+    if (simBadgeEl) {
+      simBadgeEl.className = data.simPlaying ? "sub-chip chip-warn" : "sub-chip chip-ok";
+      simBadgeEl.textContent = data.simPlaying ? "SIM PLAYING" : "REALTIME";
+    }
+    if (topoCountEl) topoCountEl.textContent = String(data.totalDevices || 0);
+    if (topoBreakdownEl) {
+      topoBreakdownEl.textContent =
+        (data.routers || 0) + "R · " + (data.switches || 0) + "SW · " + (data.endpoints || 0) + "PC";
+    }
+    if (linkCountEl) linkCountEl.textContent = String(data.links || 0);
+
+    if (powerStateEl) {
+      if ((data.totalDevices || 0) === 0) {
+        powerStateEl.className = "sub-chip chip-muted";
+        powerStateEl.textContent = "empty canvas";
+      } else if ((data.poweredOff || 0) > 0) {
+        powerStateEl.className = "sub-chip chip-err";
+        powerStateEl.textContent = data.poweredOff + " pwr off";
+      } else if ((data.unwired || 0) > 0) {
+        powerStateEl.className = "sub-chip chip-warn";
+        powerStateEl.textContent = data.unwired + " unwired";
       } else {
-        var ratio = Math.min(1, Math.max(0.15, sample.ms / maxMs));
-        var px = Math.round(4 + ratio * 16);
-        barEl.style.height = px + "px";
-        barEl.className = sample.ok ? "pulse-bar is-hot" : "pulse-bar is-err";
+        powerStateEl.className = "sub-chip chip-ok";
+        powerStateEl.textContent = "all powered";
       }
     }
-  }
 
-  function pushPulseSample(ms, ok) {
-    pulseSamples.shift();
-    pulseSamples.push({ ms: ms, ok: ok, active: true });
-    renderPulseBars();
-  }
+    if (nodeStripHintEl) {
+      nodeStripHintEl.textContent = (data.totalDevices || 0) + " device(s) · click to inspect";
+    }
 
-  function renderHealth() {
-    if (!healthSegmentsEl || !healthPctEl) return;
-    var segs = healthSegmentsEl.children;
-    if (commandCount === 0) {
-      healthPctEl.textContent = "--%";
-      for (var k = 0; k < segs.length; k++) {
-        segs[k].className = "health-seg";
+    if (nodeStripEl) {
+      nodeStripEl.innerHTML = "";
+      var devs = data.devices || [];
+      if (devs.length === 0) {
+        var emptySpan = document.createElement("span");
+        emptySpan.className = "node-empty";
+        emptySpan.textContent = "Blank canvas — add devices or load a .pkt lab";
+        nodeStripEl.appendChild(emptySpan);
+      } else {
+        for (var i = 0; i < devs.length; i++) {
+          (function (dev) {
+            var chip = document.createElement("button");
+            chip.type = "button";
+            var clsState = !dev.powered ? "is-off" : dev.linkedCount === 0 ? "is-unwired" : "is-up";
+            chip.className = "node-chip " + clsState;
+            chip.title = (dev.model || dev.role) + " · click to inspect interfaces";
+
+            var dot = document.createElement("span");
+            dot.className = "node-chip-dot";
+
+            var nameSpan = document.createElement("span");
+            nameSpan.textContent = dev.name;
+
+            chip.appendChild(dot);
+            chip.appendChild(nameSpan);
+
+            if (!dev.powered) {
+              var offSpan = document.createElement("span");
+              offSpan.className = "node-chip-ip";
+              offSpan.textContent = "OFF";
+              chip.appendChild(offSpan);
+            } else if (dev.primaryIp) {
+              var ipSpan = document.createElement("span");
+              ipSpan.className = "node-chip-ip";
+              ipSpan.textContent = dev.primaryIp;
+              chip.appendChild(ipSpan);
+            }
+
+            chip.addEventListener("click", function () {
+              inspectNodeToStream(dev);
+            });
+            nodeStripEl.appendChild(chip);
+          })(devs[i]);
+        }
       }
-      return;
     }
-    var pct = Math.round((okCount / commandCount) * 100);
-    var filled = Math.round((pct / 100) * segs.length);
-    var tone = pct >= 80 ? "is-ok" : pct >= 50 ? "is-warn" : "is-err";
-    healthPctEl.textContent = pct + "%";
-    for (var i = 0; i < segs.length; i++) {
-      segs[i].className = i < filled ? "health-seg " + tone : "health-seg";
-    }
+  };
+
+  function requestTelemetry() {
+    try {
+      if (typeof window.$se === "function") {
+        window.$se("getLabTelemetry");
+      }
+    } catch (e) {}
   }
 
   function recordCommandMetrics(ok, elapsedMs) {
@@ -211,22 +268,9 @@
     var ms = typeof elapsedMs === "number" && !isNaN(elapsedMs) ? Math.max(0, Math.round(elapsedMs)) : 0;
     totalLatencyMs += ms;
 
-    if (lastMsEl) {
-      lastMsEl.textContent = String(ms);
-      lastMsEl.className = "metric-big";
-    }
     if (avgMsEl) {
       avgMsEl.textContent = Math.round(totalLatencyMs / commandCount) + "ms";
     }
-
-    pushPulseSample(ms, ok);
-    renderHealth();
-  }
-
-  function setLastLabel(label) {
-    if (!lastLabelEl) return;
-    lastLabelEl.textContent = label;
-    lastLabelEl.title = label;
   }
 
   /**
@@ -534,7 +578,6 @@
         markConnected("v1", env.agent !== undefined ? env.agent : agentHdr);
 
         var label = extractLabel(env);
-        setLastLabel(label);
 
         executeInScriptEngine(env, function (resultPayload) {
           recordCommandMetrics(!!resultPayload.ok, resultPayload.elapsedMs);
@@ -543,6 +586,7 @@
           } else {
             appendLog("err", label + " -> " + (resultPayload.error || "failed"), resultPayload.elapsedMs);
           }
+          requestTelemetry();
           postV1Result(resultPayload, function () {
             if (running) pollV1();
           });
@@ -566,7 +610,6 @@
       markConnected("legacy", undefined);
       if (status === 200 && text) {
         var label = extractLabel({ code: text });
-        setLastLabel(label);
         recordCommandMetrics(true, 1);
         appendLog("ok", "[legacy] " + label, 1);
         try {
@@ -576,6 +619,7 @@
         } catch (e) {
           appendLog("err", "Legacy execution failed: " + String(e));
         }
+        requestTelemetry();
       }
       retryTimer = setTimeout(function () {
         retryTimer = null;
@@ -626,7 +670,6 @@
     setProtocol("none");
     if (backoffNoteEl) backoffNoteEl.textContent = "bridge paused";
     setStatus("idle", "Stopped", "Paused");
-    setLastLabel("paused");
     if (toggleBtn) toggleBtn.className = "cta-btn cta-start";
     if (toggleLabel) toggleLabel.textContent = "Start";
     appendLog("sys", "Bridge paused by operator.");
@@ -640,7 +683,6 @@
     if (toggleLabel) toggleLabel.textContent = "Stop";
     if (backoffNoteEl) backoffNoteEl.textContent = "connecting...";
     setStatus("waiting", "Connecting...", "Awaiting Bridge");
-    setLastLabel("idle");
     appendLog("sys", "Starting bridge against " + getBaseUrl() + "...");
     detectAndStart();
   }
@@ -689,13 +731,27 @@
     var arg = parts.slice(1).join(" ").trim();
 
     if (verb === "help" || verb === "?") {
-      appendLog("sys", "Commands: start | stop | clear | filter [all|sys|ipc|err] | ping | status | url <endpoint> | token <secret|clear>");
+      appendLog("sys", "Commands: start | stop | clear | refresh | filter [all|sys|ipc|err] | ping | status | inspect <dev> | url <endpoint> | token <secret|clear>");
     } else if (verb === "start") {
       startBridge();
     } else if (verb === "stop") {
       stopBridge();
     } else if (verb === "clear" || verb === "cls") {
       clearLogs();
+    } else if (verb === "refresh" || verb === "nodes") {
+      requestTelemetry();
+      appendLog("sys", "Refreshed live Packet Tracer workspace telemetry.");
+    } else if (verb === "inspect" && arg) {
+      var list = latestLabData && latestLabData.devices ? latestLabData.devices : [];
+      var target = null;
+      for (var i = 0; i < list.length; i++) {
+        if (String(list[i].name).toLowerCase() === arg.toLowerCase()) {
+          target = list[i];
+          break;
+        }
+      }
+      if (target) inspectNodeToStream(target);
+      else appendLog("err", "Device '" + arg + "' not found in latest PT snapshot.");
     } else if (verb === "filter") {
       var f = arg.toLowerCase();
       if (f === "all" || f === "sys" || f === "ipc" || f === "err") {
@@ -705,13 +761,15 @@
         appendLog("err", "Unknown filter '" + arg + "'. Expected: all, sys, ipc, err");
       }
     } else if (verb === "status") {
+      var topoInfo = latestLabData
+        ? latestLabData.totalDevices + " nodes / " + latestLabData.links + " links (" + latestLabData.pktName + ")"
+        : "no PT snapshot";
       appendLog(
         "sys",
         "State=" + (running ? (wasConnected ? "connected" : "waiting") : "stopped") +
           " | agent=" + (activeAgent || "none") +
-          " | cmds=" + commandCount +
-          " (ok=" + okCount + ", err=" + errCount + ")" +
-          " | endpoint=" + getBaseUrl()
+          " | lab=" + topoInfo +
+          " | cmds=" + commandCount + " (ok=" + okCount + ", err=" + errCount + ")"
       );
     } else if (verb === "ping") {
       var pingStart = Date.now();
@@ -755,6 +813,13 @@
 
   if (clearBtn) {
     clearBtn.addEventListener("click", clearLogs);
+  }
+
+  if (refreshTopoBtn) {
+    refreshTopoBtn.addEventListener("click", function () {
+      requestTelemetry();
+      appendLog("sys", "Refreshed live Packet Tracer lab telemetry.");
+    });
   }
 
   if (copyUrlBtn) {
@@ -814,6 +879,8 @@
       else startBridge();
     } else if (k === "c") {
       clearLogs();
+    } else if (k === "r") {
+      requestTelemetry();
     } else if (k === "u") {
       ev.preventDefault();
       if (serverUrlInput) {
@@ -835,10 +902,9 @@
   // Boot initialization
   updateClock();
   setInterval(updateClock, 1000);
+  requestTelemetry();
+  setInterval(requestTelemetry, TELEMETRY_POLL_MS);
   updateHostMeta();
-  initPulseBars();
-  renderPulseBars();
-  renderHealth();
   setFilter("all");
   setProtocol("none");
   setStatus("waiting", "Waiting for client...", "Awaiting Bridge");

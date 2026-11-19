@@ -68,6 +68,139 @@ function getActiveWebView() {
   return null;
 }
 
+function classifyDeviceRole(cls, model) {
+  var c = String(cls || "").toLowerCase();
+  var m = String(model || "").toUpperCase();
+  if (c.indexOf("router") >= 0) return "router";
+  if (c.indexOf("switch") >= 0 || /2960|3560|3650|2950|IE-3400|IE-9320|SWITCH/.test(m)) return "switch";
+  if (c === "pc" || c === "laptop" || c === "server" || /PC|LAPTOP|SERVER/.test(m)) return "endpoint";
+  return "other";
+}
+
+/**
+ * Snapshot lightweight live Packet Tracer workspace telemetry (open .pkt name,
+ * device/link/power counts, simulation state, and per-node summaries) for Panel 1.
+ */
+function getLabTelemetry() {
+  var pktName = "unsaved.pkt";
+  var simPlaying = false;
+  var devices = [];
+  var routers = 0;
+  var switches = 0;
+  var endpoints = 0;
+  var other = 0;
+  var poweredOff = 0;
+  var unwired = 0;
+  var linkedPorts = 0;
+
+  try {
+    var aw = ipc.appWindow();
+    if (aw) {
+      try {
+        var nf = aw.getActiveFile();
+        if (nf && typeof nf.getSavedFilename === "function") {
+          var saved = String(nf.getSavedFilename() || "").trim();
+          if (saved) pktName = saved.replace(/^.*[\\\/]/, "");
+        }
+      } catch (e1) {}
+      try {
+        var sp = aw.getSimulationPanel();
+        if (sp && typeof sp.isPlaying === "function") {
+          simPlaying = !!sp.isPlaying();
+        }
+      } catch (e2) {}
+    }
+  } catch (e0) {}
+
+  try {
+    var net = ipc.network();
+    var n = net ? net.getDeviceCount() : 0;
+    for (var i = 0; i < n; i++) {
+      var d = net.getDeviceAt(i);
+      if (!d) continue;
+      var model = "";
+      try { model = String(d.getModel() || ""); } catch (em) {}
+      if (model === "Power Distribution Device") continue;
+
+      var name = "";
+      var cls = "";
+      var powered = true;
+      try { name = String(d.getName() || ""); } catch (errName) {}
+      try { cls = String(d.getClassName() || ""); } catch (ec) {}
+      try { powered = !!d.getPower(); } catch (ep) {}
+
+      var role = classifyDeviceRole(cls, model);
+      if (role === "router") routers++;
+      else if (role === "switch") switches++;
+      else if (role === "endpoint") endpoints++;
+      else other++;
+      if (!powered) poweredOff++;
+
+      var portCount = 0;
+      try { portCount = Number(d.getPortCount()) || 0; } catch (epc) {}
+      var devLinked = 0;
+      var primaryIp = "";
+      var ports = [];
+      for (var j = 0; j < portCount; j++) {
+        var p = null;
+        try { p = d.getPortAt(j); } catch (egetp) {}
+        if (!p) continue;
+        var pName = "";
+        var pIp = "";
+        var pLink = null;
+        try { pName = String(p.getName() || ""); } catch (epn) {}
+        try { pIp = String(p.getIpAddress() || ""); } catch (epi) {}
+        try { pLink = p.getLink(); } catch (epl) {}
+        var isLinked = !!pLink;
+        if (isLinked) {
+          devLinked++;
+          linkedPorts++;
+        }
+        if (pIp && pIp !== "0.0.0.0" && pIp !== "255.255.255.255") {
+          if (!primaryIp) primaryIp = pIp;
+          ports.push({ name: pName, ip: pIp, linked: isLinked });
+        } else if (isLinked) {
+          ports.push({ name: pName, ip: "", linked: true });
+        }
+      }
+      if (devLinked === 0) unwired++;
+
+      devices.push({
+        name: name,
+        model: model,
+        role: role,
+        powered: powered,
+        linkedCount: devLinked,
+        portCount: portCount,
+        primaryIp: primaryIp,
+        ports: ports
+      });
+    }
+  } catch (enet) {}
+
+  var payload = {
+    pktName: pktName,
+    simPlaying: simPlaying,
+    totalDevices: devices.length,
+    routers: routers,
+    switches: switches,
+    endpoints: endpoints,
+    other: other,
+    links: Math.floor(linkedPorts / 2),
+    poweredOff: poweredOff,
+    unwired: unwired,
+    devices: devices
+  };
+
+  var wv = getActiveWebView();
+  if (wv && typeof wv.evaluateJavaScriptAsync === "function") {
+    wv.evaluateJavaScriptAsync(
+      "window.__stuLabTelemetry && window.__stuLabTelemetry(" + JSON.stringify(payload) + ");"
+    );
+  }
+  return JSON.stringify(payload);
+}
+
 /**
  * Bridge Protocol v1 execution entry point.
  * Called from the WebView via `$se('runEnvelope', id, code)`.
