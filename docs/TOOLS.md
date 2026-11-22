@@ -301,7 +301,7 @@ Send ICMP echo requests from a PC, switch, or router to a target IP and return p
 
 ### `pt_send_pdu`
 
-Originate a Simple PDU (ICMP echo) from one device to another via UserCreatedPDU.addSimplePdu. Returns the scenario index assigned to the PDU. Verified on PT 9 real (probe-fase8b 2026-04-29).
+Originate a Simple PDU (ICMP echo) from one device to another via UserCreatedPDU.addSimplePdu. Returns the scenario index assigned to the PDU.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |

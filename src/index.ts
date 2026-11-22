@@ -1,4 +1,7 @@
 #!/usr/bin/env bun
+import { existsSync, statSync } from "node:fs";
+import { createServer as createNetServer } from "node:net";
+import { resolve } from "node:path";
 import pkg from "../package.json" with { type: "json" };
 import { loadConfig } from "./config.js";
 import { startServer, startStdioServer, type RunningServer } from "./server.js";
@@ -12,6 +15,10 @@ async function main(): Promise<void> {
   }
   if (args.includes("--help") || args.includes("-h")) {
     printHelp();
+    return;
+  }
+  if (args.includes("--doctor")) {
+    await runDoctor();
     return;
   }
 
@@ -94,17 +101,54 @@ function watchBridgeConnection(running: RunningServer, log: (msg: string) => voi
   return timer;
 }
 
+function checkPortFree(host: string, port: number): Promise<boolean> {
+  return new Promise((resolveDone) => {
+    const srv = createNetServer();
+    srv.once("error", () => resolveDone(false));
+    srv.once("listening", () => {
+      srv.close(() => resolveDone(true));
+    });
+    srv.listen(port, host);
+  });
+}
+
+async function runDoctor(): Promise<void> {
+  const cfg = loadConfig();
+  const bunVer = typeof Bun !== "undefined" ? Bun.version : "missing";
+  const ptsPath = resolve(import.meta.dir, "../extension/dist/stu-mcp-bridge.pts");
+  const hasPts = existsSync(ptsPath);
+  const ptsBytes = hasPts ? statSync(ptsPath).size : 0;
+  const bridgeFree = await checkPortFree("127.0.0.1", cfg.bridgePort);
+  const mcpFree = await checkPortFree(cfg.mcpHost, cfg.mcpPort);
+
+  const lines = [
+    `stu-packet-tracer-mcp v${pkg.version} — Environment Doctor`,
+    "",
+    `  [${bunVer !== "missing" ? "OK" : "FAIL"}] Bun runtime:        ${bunVer}`,
+    `  [${hasPts ? "OK" : "WARN"}] PT 9 extension:     ${hasPts ? `extension/dist/stu-mcp-bridge.pts (${ptsBytes} bytes)` : "missing (see docs/BUILD_EXTENSION.md)"}`,
+    `  [${bridgeFree ? "OK" : "BUSY"}] Bridge port :${cfg.bridgePort}  ${bridgeFree ? "available" : "in use (another stu-packet-tracer-mcp instance running?)"}`,
+    `  [${mcpFree ? "OK" : "BUSY"}] MCP port    :${cfg.mcpPort}  ${mcpFree ? "available" : "in use"}`,
+    `  [INFO] Teach Mode:       ${process.env.STU_PT_TEACH_MODE === "1" ? "ON (dry-run only)" : "OFF"}`,
+    `  [INFO] Bridge Token:     ${process.env.STU_PT_BRIDGE_TOKEN ? "configured (X-Stu-Token required)" : "unset (local loopback)"}`,
+    `  [INFO] Output Dir:       ${process.env.STU_PT_OUTPUT_DIR || "./stu-pt-output"}`,
+    "",
+  ];
+  process.stdout.write(lines.join("\n"));
+}
+
 function printHelp(): void {
   const text = [
     `stu-packet-tracer-mcp v${pkg.version}`,
     "Student-focused MCP server for Cisco Packet Tracer 9.",
     "",
     "Usage:",
-    "  bunx stu-packet-tracer-mcp          Start in HTTP mode (Streamable HTTP)",
-    "  bunx stu-packet-tracer-mcp --stdio  Start in stdio mode (Claude Desktop, etc.)",
+    "  bunx stu-packet-tracer-mcp           Start in HTTP mode (Streamable HTTP)",
+    "  bunx stu-packet-tracer-mcp --stdio   Start in stdio mode (Claude Desktop, etc.)",
+    "  bunx stu-packet-tracer-mcp --doctor  Check Bun, ports, and PT extension bundle",
     "",
     "Options:",
     "  --stdio          Speak JSON-RPC over stdin/stdout instead of HTTP",
+    "  --doctor         Run local environment & port diagnostics and exit",
     "  -v, --version    Print version and exit",
     "  -h, --help       Show this help message",
     "",

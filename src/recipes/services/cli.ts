@@ -213,9 +213,8 @@ export function ntpCli(n: NtpIntent): string {
   if (n.servers.length > 1 && supportsMultipleNtpServers(n.routerModel) === false) {
     throw new Error(
       `Multiple NTP servers not supported on '${n.routerModel}' in PT 9 ` +
-        `(only the LAST 'ntp server' line is retained — verified 2026-05-01 ` +
-        `via scripts/probe-router-services-cli-coverage.ts on all 6 PT 9 routers). ` +
-        `Pass exactly one server, or omit routerModel to bypass the guard.`,
+        `(only the last 'ntp server' line is retained). ` +
+        `Pass exactly one server, or omit routerModel to bypass this guard.`,
     );
   }
   return n.servers.map(s => `ntp server ${s}`).join("\n");
@@ -228,9 +227,8 @@ export function syslogCli(s: SyslogIntent): string {
     if (supportsLoggingTrap(s.routerModel) === false) {
       throw new Error(
         `'logging trap <N>' not supported on '${s.routerModel}' in PT 9 ` +
-          `(parser rejects with '% Invalid input' — verified 2026-05-01 ` +
-          `via scripts/probe-router-services-cli-coverage.ts on all 6 PT 9 routers). ` +
-          `Omit trapLevel for this device, or omit routerModel to bypass the guard.`,
+          `(its IOS parser rejects it with '% Invalid input'). ` +
+          `Omit trapLevel for this device, or omit routerModel to bypass this guard.`,
       );
     }
     lines.push(`logging trap ${s.trapLevel}`);

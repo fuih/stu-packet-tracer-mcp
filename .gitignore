@@ -13,20 +13,7 @@ node_modules/
 tmp/
 out/
 
-docs/probe-runs/
-docs/pt-api/
-docs/screenshots/
-docs/smoke-runs/
-
-# Internal verification log (the source of truth with implementation-level
-# detail). The public-facing summary lives in docs/COVERAGE.md.
-docs/VERIFIED.md
-
-# Internal planning doc with phase-level detail and references to private
-# probe artefacts. Kept private; users get the public docs in docs/.
-docs/ROADMAP.md
-
-# Default student capture & report output directory
+# Default student capture, report, and snapshot output directories
 stu-pt-output/
 packet-tracer-snapshots/
 
@@ -36,10 +23,3 @@ packet-tracer-snapshots/
 !extension/dist/
 !extension/dist/*.pts
 !extension/dist/.gitkeep
-
-scripts/crawl-pt-api.ts
-scripts/diff-pt-api.ts
-scripts/probe-*.ts
-scripts/smoke.ts
-extension-python
-docs/RELEASING.md

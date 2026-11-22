@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOTS_TO_CHECK = [
+  ".github",
   "src",
   "tests",
   "extension/src",

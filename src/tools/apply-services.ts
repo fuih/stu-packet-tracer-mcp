@@ -87,8 +87,8 @@ const NtpSchema = z.object({
   servers: z.array(z.string().min(1)).min(1),
   routerModel: z.string().optional().describe(
     "Optional PT model. When set to '1941' and >1 servers are passed, the " +
-    "builder fails fast with a transparent error: PT 9 1941 retains only " +
-    "the LAST `ntp server` line (VERIFIED.md F3-19).",
+    "builder fails fast with a clear error because PT 9's 1941 IOS retains only " +
+    "the last `ntp server` line.",
   ),
 });
 
@@ -98,7 +98,7 @@ const SyslogSchema = z.object({
   trapLevel: z.number().int().min(0).max(7).optional(),
   routerModel: z.string().optional().describe(
     "Optional PT model. When set to '1941' and trapLevel is provided, the " +
-    "builder fails fast: PT 9 1941 rejects `logging trap <N>` (VERIFIED.md F3-21).",
+    "builder fails fast because PT 9's 1941 IOS rejects `logging trap <N>`.",
   ),
 });
 

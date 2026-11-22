@@ -20,7 +20,7 @@ const InputSchema = {
 export const registerSendPduTool: ToolModule = ({ bridge, server }) => {
   server.tool(
     "pt_send_pdu",
-    "Originate a Simple PDU (ICMP echo) from one device to another via UserCreatedPDU.addSimplePdu. Returns the scenario index assigned to the PDU. Verified on PT 9 real (probe-fase8b 2026-04-29).",
+    "Originate a Simple PDU (ICMP echo) from one device to another via UserCreatedPDU.addSimplePdu. Returns the scenario index assigned to the PDU.",
     InputSchema,
     async ({ source, dest, fire, switch_to_simulation }) => {
       const blocked = requireConnectedBridge(bridge);

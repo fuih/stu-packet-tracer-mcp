@@ -1,9 +1,12 @@
 # stu-packet-tracer-mcp
 
-A student-focused **Model Context Protocol (MCP)** server for **Cisco Packet Tracer 9**. Connect Claude, Antigravity, Cursor, VS Code, or Gemini CLI directly to your open Packet Tracer workspace to build topologies, run Cisco IOS commands without `--More--` truncation, generate crisp terminal-style CLI screenshots (SVG & PNG), verify lab objectives, and export submission-ready **DOCX, print-to-PDF HTML, and Markdown** lab reports in one command.
+[![CI](https://github.com/fuih/stu-packet-tracer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/fuih/stu-packet-tracer-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Runtime: Bun >= 1.2](https://img.shields.io/badge/Bun-%3E%3D1.2-f472b6.svg)](https://bun.sh)
+[![Cisco Packet Tracer 9](https://img.shields.io/badge/Cisco%20Packet%20Tracer-9.x-049fd9.svg)](docs/QUICKSTART.md)
+[![MCP Tools: 72](https://img.shields.io/badge/MCP%20Tools-72-10b981.svg)](docs/TOOLS.md)
 
-> [!NOTE]
-> *Demo preview placeholder:* drop a short GIF of `pt_capture_cli` + `pt_export_report` here once recorded, or see the rendered terminal snapshots in [docs/REPORTS.md](docs/REPORTS.md).
+A student-focused **Model Context Protocol (MCP)** server for **Cisco Packet Tracer 9**. Connect Claude, Antigravity, Cursor, VS Code, or Gemini CLI directly to your open Packet Tracer workspace to build topologies in a single turn, run Cisco IOS commands without `--More--` truncation, generate crisp terminal-style CLI screenshots (SVG & PNG), verify lab objectives, and export submission-ready **DOCX, print-to-PDF HTML, and Markdown** lab reports in one command.
 
 ---
 

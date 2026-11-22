@@ -1,27 +1,19 @@
-<!--
-Gracias por el PR. Antes de pedir revisión:
+## Summary
 
-1. Lee CONTRIBUTING.md si es tu primer PR.
-2. Confirma que `bun test` pasa en local (348+ tests, no necesita PT corriendo).
-3. Si tu cambio toca cómo se habla con PT, deja un smoke run o di explícitamente que no has podido probarlo contra PT real.
--->
+<!-- Briefly describe what this pull request changes and why. -->
 
-## Qué cambia
+## Related Issue
 
-<!-- Una o dos frases. El "qué" se ve en el diff; aquí va el resumen. -->
+<!-- Link any related issue, e.g. Fixes #123 -->
 
-## Por qué
+## How It Was Tested
 
-<!-- El motivo. Si arregla un issue, enlázalo: "Fixes #123". -->
-
-## Cómo lo has probado
-
-<!-- bun test / smoke run / manual contra PT 9.0.0.0810 / no probado -->
+<!-- e.g. `bun run ci`, live Packet Tracer 9 smoke test, etc. -->
 
 ## Checklist
 
-- [ ] `bun test` pasa
-- [ ] Si añade una tool: registrada en `src/tools/index.ts`, README (ES + EN), `docs/ARCHITECTURE.md` y `docs/COVERAGE.md`
-- [ ] Si rompe la firma de una tool existente: lo digo expresamente arriba
-- [ ] `CHANGELOG.md` actualizado en la sección `[Unreleased]`
-- [ ] Sin `console.log` ni código comentado de paso
+- [ ] `bun run ci` passes locally (`typecheck`, `check:english`, `check:tools`, `bun test`)
+- [ ] All code, comments, tool descriptions, and docs are in English
+- [ ] If adding or changing tools: regenerated `docs/TOOLS.md` with `bun run docs:tools`
+- [ ] No logs written to `stdout` (keep `--stdio` transport clean)
+- [ ] Updated `CHANGELOG.md` if user-facing behavior changed

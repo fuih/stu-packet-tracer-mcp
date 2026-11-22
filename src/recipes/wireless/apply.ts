@@ -17,18 +17,13 @@ import type {
 } from "./intents.js";
 
 /**
- * Shared error message. Thrown when the blueprint declares wireless clients.
- * Documented in docs/ROADMAP.md (phase 6) and docs/VERIFIED.md
- * (F6-03/04/05): public JS IPC in PT 9 exposes setters on
- * `WirelessClientProcess`, but does not trigger radio association. The GUI
- * associates via native C++ code not exposed to `ipc.network()`. Verified
- * with scripts/probe-wireless-associate.ts (seven strategies, all dead ends).
+ * Shared error message thrown when a blueprint declares wireless client association.
+ * Packet Tracer 9's public JS IPC exposes setters on `WirelessClientProcess` but
+ * does not trigger radio association (handled only by native GUI code).
  */
 const WIRELESS_ASSOC_DEAD_END =
-  "PT 9 IPC does not trigger wireless association: the JS API exposes " +
-  "WirelessClientProcess setters but the radio link is established by " +
-  "native C++ code that is not reachable from ipc.network(). " +
-  "See docs/ROADMAP.md phase 6 and scripts/probe-wireless-associate.ts.";
+  "Packet Tracer 9 IPC does not trigger wireless client association: the JS API exposes " +
+  "WirelessClientProcess setters, but establishing the radio link requires Packet Tracer's native GUI.";
 
 export interface WirelessAction {
   readonly device: string;

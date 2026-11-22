@@ -70,6 +70,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --hot src/index.ts",
+    "doctor": "bun run src/index.ts --doctor",
     "build": "bun build src/index.ts --compile --outfile dist/stu-packet-tracer-mcp",
     "typecheck": "tsc --noEmit",
     "check:english": "bun run scripts/check-english.ts",

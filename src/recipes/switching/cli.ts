@@ -62,8 +62,7 @@ export function etherChannelCli(e: EtherChannelIntent): string {
   if (supportsEtherChannel(e.switchModel) === false) {
     throw new Error(
       `EtherChannel not supported on '${e.switchModel}' in PT 9 (IOS XE parser stub drops 'channel-group'). ` +
-        `Verified 2026-05-01 via scripts/probe-multilayer-cli-coverage.ts. ` +
-        `Use a different multilayer (3560-24PS / 3650-24PS / IE-3400) or skip this intent.`,
+        `Use a supported multilayer switch (3560-24PS, 3650-24PS, or IE-3400) or skip this intent.`,
     );
   }
   const mode = e.mode ?? "on";
