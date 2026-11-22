@@ -26,6 +26,11 @@
   var toggleBtn = document.getElementById("toggle-btn");
   var toggleLabel = document.getElementById("toggle-label");
   var clearBtn = document.getElementById("clear-btn");
+  var wrAllBtn = document.getElementById("wr-all-btn");
+  var copyIpsBtn = document.getElementById("copy-ips-btn");
+  var powerOnBtn = document.getElementById("power-on-btn");
+  var configToggleBtn = document.getElementById("config-toggle-btn");
+  var configDrawerEl = document.getElementById("config-drawer");
   var refreshTopoBtn = document.getElementById("refresh-topo-btn");
   var autoscrollBtn = document.getElementById("autoscroll-btn");
   var autoscrollLabel = document.getElementById("autoscroll-label");
@@ -37,11 +42,8 @@
   var statusText = document.getElementById("status-text");
   var backoffNoteEl = document.getElementById("backoff-note");
   var protocolBadge = document.getElementById("protocol-badge");
-  var metaHostEl = document.getElementById("meta-host");
   var metaAgentEl = document.getElementById("meta-agent");
-  var metaChannelEl = document.getElementById("meta-channel");
 
-  var clockEl = document.getElementById("clock-text");
   var uptimeEl = document.getElementById("uptime-text");
   var pktNameEl = document.getElementById("pkt-name");
   var simBadgeEl = document.getElementById("sim-badge");
@@ -96,8 +98,7 @@
     return pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
   }
 
-  function updateClock() {
-    if (clockEl) clockEl.textContent = nowTime();
+  function updateUptime() {
     if (uptimeEl) {
       var secs = Math.floor((Date.now() - startedAt) / 1000);
       var h = Math.floor(secs / 3600);
@@ -105,12 +106,6 @@
       var s = secs % 60;
       uptimeEl.textContent = pad2(h) + ":" + pad2(m) + ":" + pad2(s);
     }
-  }
-
-  function updateHostMeta() {
-    if (!metaHostEl) return;
-    var hostOnly = getBaseUrl().replace(/^https?:\/\//i, "");
-    metaHostEl.textContent = hostOnly || "127.0.0.1:54321";
   }
 
   function updateAgentDisplay(nextName, shouldLog) {
@@ -196,6 +191,17 @@
       } else {
         powerStateEl.className = "sub-chip chip-ok";
         powerStateEl.textContent = "all powered";
+      }
+    }
+
+    if (powerOnBtn) {
+      var offCount = Number(data.poweredOff) || 0;
+      if (offCount > 0) {
+        powerOnBtn.className = "tool-btn tool-btn-power";
+        powerOnBtn.textContent = "power on (" + offCount + ")";
+      } else {
+        powerOnBtn.className = "tool-btn tool-btn-power is-hidden";
+        powerOnBtn.textContent = "power on";
       }
     }
 
@@ -378,19 +384,16 @@
         protocolBadge.className = "proto-badge proto-v1";
         protocolBadge.textContent = "V1";
       }
-      if (metaChannelEl) metaChannelEl.textContent = "IPC/V1";
     } else if (mode === "legacy") {
       if (protocolBadge) {
         protocolBadge.className = "proto-badge proto-legacy";
         protocolBadge.textContent = "LEGACY";
       }
-      if (metaChannelEl) metaChannelEl.textContent = "IPC/LEGACY";
     } else {
       if (protocolBadge) {
         protocolBadge.className = "proto-badge";
         protocolBadge.textContent = "V--";
       }
-      if (metaChannelEl) metaChannelEl.textContent = "IPC/AUTO";
     }
   }
 
@@ -655,7 +658,6 @@
 
   function detectAndStart() {
     if (!running) return;
-    updateHostMeta();
     var statusUrl = getBaseUrl() + "/v1/status";
     xhrRequest("GET", statusUrl, null, 4000, function (err, status, text, agentHdr) {
       if (!running) return;
@@ -716,35 +718,133 @@
     if (logListEl) logListEl.innerHTML = "";
   }
 
-  function copyEndpoint() {
-    var val = getBaseUrl();
+  function flashButtonLabel(btn, tempText, origText) {
+    if (!btn) return;
+    btn.textContent = tempText;
+    setTimeout(function () {
+      btn.textContent = origText;
+    }, 1200);
+  }
+
+  function copyTextToClipboard(text, btn, origLabel, doneLabel, fallbackLog) {
     if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      navigator.clipboard.writeText(val).then(function () {
-        if (copyUrlBtn) {
-          copyUrlBtn.textContent = "copied";
-          setTimeout(function () { copyUrlBtn.textContent = "copy"; }, 1200);
-        }
+      navigator.clipboard.writeText(text).then(function () {
+        flashButtonLabel(btn, doneLabel, origLabel);
       }, function () {
-        fallbackCopy(val);
+        fallbackCopyText(text, btn, origLabel, doneLabel, fallbackLog);
       });
     } else {
-      fallbackCopy(val);
+      fallbackCopyText(text, btn, origLabel, doneLabel, fallbackLog);
     }
   }
 
-  function fallbackCopy(text) {
-    if (!serverUrlInput) return;
-    serverUrlInput.focus();
-    serverUrlInput.select();
+  function fallbackCopyText(text, btn, origLabel, doneLabel, fallbackLog) {
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.focus();
+    area.select();
     try {
       document.execCommand("copy");
-      if (copyUrlBtn) {
-        copyUrlBtn.textContent = "copied";
-        setTimeout(function () { copyUrlBtn.textContent = "copy"; }, 1200);
+      flashButtonLabel(btn, doneLabel, origLabel);
+    } catch (e) {
+      if (fallbackLog) appendLog("sys", fallbackLog);
+    }
+    document.body.removeChild(area);
+  }
+
+  function copyEndpoint() {
+    var val = getBaseUrl();
+    copyTextToClipboard(val, copyUrlBtn, "copy", "copied", "Endpoint: " + val);
+  }
+
+  function toggleConfigDrawer(forceOpen) {
+    if (!configDrawerEl) return;
+    var isCollapsed = configDrawerEl.className.indexOf("is-collapsed") >= 0;
+    var shouldOpen = forceOpen !== undefined ? !!forceOpen : isCollapsed;
+    configDrawerEl.className = shouldOpen ? "config-drawer" : "config-drawer is-collapsed";
+    if (configToggleBtn) {
+      configToggleBtn.className = shouldOpen ? "tool-btn tool-btn-config is-open" : "tool-btn tool-btn-config";
+      configToggleBtn.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    }
+  }
+
+  window.__stuActionResult = function (res) {
+    if (!res) return;
+    if (res.action === "wr_all") {
+      var saved = res.saved || [];
+      var skipped = res.skipped || [];
+      if (saved.length > 0) {
+        appendLog("ok", "Saved configs (write memory) on " + saved.length + " device(s): " + saved.join(", "));
+      } else {
+        appendLog("sys", "No powered-on routers or switches found to save.");
+      }
+      if (skipped.length > 0) {
+        appendLog("sys", "Skipped: " + skipped.join(", "));
+      }
+    } else if (res.action === "power_on") {
+      var powered = res.powered || [];
+      if (powered.length > 0) {
+        appendLog("ok", "Powered on " + powered.length + " device(s): " + powered.join(", "));
+      } else {
+        appendLog("sys", "All lab devices are already powered on.");
+      }
+    }
+  };
+
+  function runSaveAllConfigs() {
+    try {
+      if (typeof window.$se === "function") {
+        window.$se("saveAllConfigs");
+        flashButtonLabel(wrAllBtn, "saving...", "wr all");
+      } else {
+        appendLog("err", "$se is unavailable outside Packet Tracer.");
       }
     } catch (e) {
-      appendLog("sys", "Endpoint: " + text);
+      appendLog("err", "Save configs failed: " + String(e));
     }
+  }
+
+  function runPowerOnAll() {
+    try {
+      if (typeof window.$se === "function") {
+        window.$se("powerOnAll");
+      } else {
+        appendLog("err", "$se is unavailable outside Packet Tracer.");
+      }
+    } catch (e) {
+      appendLog("err", "Power on failed: " + String(e));
+    }
+  }
+
+  function copyAddressingTable() {
+    var devs = latestLabData && latestLabData.devices ? latestLabData.devices : [];
+    var rows = [];
+    for (var i = 0; i < devs.length; i++) {
+      var d = devs[i];
+      var ports = d.ports || [];
+      var gw = d.gateway || "-";
+      for (var j = 0; j < ports.length; j++) {
+        var p = ports[j];
+        if (!p.ip) continue;
+        rows.push(
+          "| " + d.name + " | " + (d.model || d.role) + " | " + p.name +
+          " | " + p.ip + " | " + (p.mask || "-") + " | " + gw + " | " + (p.linked ? "up" : "down") + " |"
+        );
+      }
+    }
+    if (rows.length === 0) {
+      appendLog("sys", "No configured IPv4 addresses in latest PT snapshot.");
+      return;
+    }
+    var md = [
+      "| Device | Model | Interface | IP | Mask | Gateway | Link |",
+      "| --- | --- | --- | --- | --- | --- | --- |"
+    ].concat(rows).join("\n");
+    copyTextToClipboard(md, copyIpsBtn, "copy ips", "copied!", md);
+    appendLog("ok", "Copied addressing table (" + rows.length + " IP row(s)) to clipboard.");
   }
 
   function handleCliCommand(raw) {
@@ -756,7 +856,7 @@
     var arg = parts.slice(1).join(" ").trim();
 
     if (verb === "help" || verb === "?") {
-      appendLog("sys", "Commands: start | stop | clear | refresh | filter [all|sys|ipc|err] | ping | status | inspect <dev> | url <endpoint> | token <secret|clear>");
+      appendLog("sys", "Commands: start | stop | clear | refresh | wr | ips | power | config | filter [all|sys|ipc|err] | ping | status | inspect <dev> | url <endpoint> | token <secret|clear>");
     } else if (verb === "start") {
       startBridge();
     } else if (verb === "stop") {
@@ -766,6 +866,14 @@
     } else if (verb === "refresh" || verb === "nodes") {
       requestTelemetry(true);
       appendLog("sys", "Refreshed live Packet Tracer workspace telemetry.");
+    } else if (verb === "wr" || verb === "save") {
+      runSaveAllConfigs();
+    } else if (verb === "ips") {
+      copyAddressingTable();
+    } else if (verb === "power") {
+      runPowerOnAll();
+    } else if (verb === "config") {
+      toggleConfigDrawer();
     } else if (verb === "inspect" && arg) {
       var list = latestLabData && latestLabData.devices ? latestLabData.devices : [];
       var target = null;
@@ -814,7 +922,6 @@
       });
     } else if (verb === "url" && arg) {
       serverUrlInput.value = arg;
-      updateHostMeta();
       appendLog("sys", "Endpoint updated to " + getBaseUrl());
       if (running) {
         stopBridge();
@@ -840,6 +947,24 @@
     clearBtn.addEventListener("click", clearLogs);
   }
 
+  if (wrAllBtn) {
+    wrAllBtn.addEventListener("click", runSaveAllConfigs);
+  }
+
+  if (copyIpsBtn) {
+    copyIpsBtn.addEventListener("click", copyAddressingTable);
+  }
+
+  if (powerOnBtn) {
+    powerOnBtn.addEventListener("click", runPowerOnAll);
+  }
+
+  if (configToggleBtn) {
+    configToggleBtn.addEventListener("click", function () {
+      toggleConfigDrawer();
+    });
+  }
+
   if (refreshTopoBtn) {
     refreshTopoBtn.addEventListener("click", function () {
       requestTelemetry(true);
@@ -857,10 +982,6 @@
       tokenInput.type = hidden ? "text" : "password";
       revealTokenBtn.textContent = hidden ? "hide" : "reveal";
     });
-  }
-
-  if (serverUrlInput) {
-    serverUrlInput.addEventListener("input", updateHostMeta);
   }
 
   if (autoscrollBtn) {
@@ -908,6 +1029,7 @@
       requestTelemetry(true);
     } else if (k === "u") {
       ev.preventDefault();
+      toggleConfigDrawer(true);
       if (serverUrlInput) {
         serverUrlInput.focus();
         serverUrlInput.select();
@@ -925,13 +1047,12 @@
   });
 
   // Boot initialization
-  updateClock();
-  setInterval(updateClock, 1000);
+  updateUptime();
+  setInterval(updateUptime, 1000);
   requestTelemetry(true);
   setInterval(function () {
     requestTelemetry(false);
   }, TELEMETRY_POLL_MS);
-  updateHostMeta();
   setFilter("all");
   setProtocol("none");
   setStatus("waiting", "Waiting for client...", "Awaiting Bridge");

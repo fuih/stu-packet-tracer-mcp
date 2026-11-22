@@ -808,13 +808,83 @@ body[data-state="connected"] .backoff-note {
 }
 
 /* ============================================================================
- * Panel 2: Bridge Configuration
+ * Slim Action Bar & Collapsible Bridge Configuration
  * ========================================================================== */
-.config-body {
-  padding: 10px 12px;
+.toolbar-panel {
+  overflow: visible;
+}
+
+.toolbar-row {
+  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tool-btn {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tool-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-border);
+  color: var(--text-strong);
+}
+
+.tool-btn-power {
+  background: var(--err-bg);
+  border-color: var(--err-border);
+  color: var(--err);
+  animation: pulseFade 2s ease-in-out infinite;
+}
+
+.tool-btn-power:hover {
+  background: rgba(244, 63, 94, 0.28);
+  border-color: var(--err);
+  color: #fecdd3;
+}
+
+.tool-btn-config.is-open {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.config-drawer {
+  padding: 9px 12px 10px;
+  border-top: 1px solid var(--border-soft);
+  background: rgba(0, 0, 0, 0.24);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
+}
+
+.config-drawer.is-collapsed {
+  display: none;
 }
 
 .flag-row {
@@ -900,16 +970,6 @@ body[data-state="connected"] .backoff-note {
 .inline-btn:hover {
   color: var(--text-strong);
   background: var(--bg-hover);
-}
-
-.config-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-soft);
-  flex-wrap: wrap;
 }
 
 .action-buttons {

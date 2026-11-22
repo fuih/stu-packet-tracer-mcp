@@ -104,9 +104,10 @@ Once Packet Tracer shows **Connected (`V1`)**, ask your AI assistant in plain En
 ### 5. Bridge Monitor Panel Controls
 Inside Packet Tracer's **Student MCP Bridge** window:
 - **Live lab telemetry & node inspector:** shows the active `.pkt` file, `REALTIME` / `SIM PLAYING` mode, router/switch/endpoint counts, link count with power/unwired alerts, IPC `ok`/`err` + `avg ms`, and a clickable **`LIVE LAB NODES`** strip (click any device chip or press **`refresh`** to log its power state, port count, and active IPs).
+- **1-click lab toolbar & collapsible config:** **`wr all`** (`write memory` across all powered-on routers/switches), **`copy ips`** (copies a live Markdown addressing table to your clipboard), **`power on`** (appears automatically when any node is powered off), and **`config`** (collapses `--url` and `--token` out of the way to maximize stream height).
 - **Filter stream logs:** click **`ALL`**, **`SYS`**, **`IPC`**, or **`ERR`**, and toggle **`autoscroll: ON / OFF`**.
-- **Hotkeys:** `s` stop/start bridge polling · `r` refresh lab telemetry · `c` clear stream · `u` focus `--url` · `l` focus logs · `/` or `:` focus `pt-bridge>` CLI prompt.
-- **Built-in `pt-bridge>` prompt commands:** `:help`, `start`, `stop`, `clear`, `refresh`, `inspect <dev>`, `filter [all|sys|ipc|err]`, `ping`, `status`, `url <endpoint>`, `token <secret|clear>`.
+- **Hotkeys:** `s` stop/start bridge polling · `r` refresh lab telemetry · `c` clear stream · `u` open config & focus `--url` · `l` focus logs · `/` or `:` focus `pt-bridge>` CLI prompt.
+- **Built-in `pt-bridge>` prompt commands:** `:help`, `start`, `stop`, `clear`, `refresh`, `wr`, `ips`, `power`, `config`, `inspect <dev>`, `filter [all|sys|ipc|err]`, `ping`, `status`, `url <endpoint>`, `token <secret|clear>`.
 
 ---
 

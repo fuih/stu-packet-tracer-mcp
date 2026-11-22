@@ -138,6 +138,9 @@ function getLabTelemetry() {
 
       var portCount = 0;
       try { portCount = Number(d.getPortCount()) || 0; } catch (epc) {}
+      var devGateway = "";
+      try { devGateway = String(d.getDefaultGateway() || ""); } catch (egw) {}
+      if (devGateway === "0.0.0.0") devGateway = "";
       var devLinked = 0;
       var primaryIp = "";
       var ports = [];
@@ -147,20 +150,29 @@ function getLabTelemetry() {
         if (!p) continue;
         var pName = "";
         var pIp = "";
+        var pMask = "";
         var pLink = null;
         try { pName = String(p.getName() || ""); } catch (epn) {}
         try { pIp = String(p.getIpAddress() || ""); } catch (epi) {}
         try { pLink = p.getLink(); } catch (epl) {}
+        if (!devGateway && typeof p.getDefaultGateway === "function") {
+          try {
+            var pgw = String(p.getDefaultGateway() || "");
+            if (pgw && pgw !== "0.0.0.0") devGateway = pgw;
+          } catch (epgw) {}
+        }
         var isLinked = !!pLink;
         if (isLinked) {
           devLinked++;
           linkedPorts++;
         }
         if (pIp && pIp !== "0.0.0.0" && pIp !== "255.255.255.255") {
+          try { pMask = String(p.getSubnetMask() || ""); } catch (epm) {}
+          if (pMask === "0.0.0.0") pMask = "";
           if (!primaryIp) primaryIp = pIp;
-          ports.push({ name: pName, ip: pIp, linked: isLinked });
+          ports.push({ name: pName, ip: pIp, mask: pMask, linked: isLinked });
         } else if (isLinked) {
-          ports.push({ name: pName, ip: "", linked: true });
+          ports.push({ name: pName, ip: "", mask: "", linked: true });
         }
       }
       if (devLinked === 0) unwired++;
@@ -170,6 +182,7 @@ function getLabTelemetry() {
         model: model,
         role: role,
         powered: powered,
+        gateway: devGateway,
         linkedCount: devLinked,
         portCount: portCount,
         primaryIp: primaryIp,
@@ -199,6 +212,107 @@ function getLabTelemetry() {
     );
   }
   return JSON.stringify(payload);
+}
+
+/**
+ * Persist running-config to startup-config (`write memory`) on every powered-on
+ * router and switch in the active workspace.
+ */
+function saveAllConfigs() {
+  var saved = [];
+  var skipped = [];
+  try {
+    var net = ipc.network();
+    var n = net ? net.getDeviceCount() : 0;
+    for (var i = 0; i < n; i++) {
+      var d = net.getDeviceAt(i);
+      if (!d) continue;
+      var model = "";
+      try { model = String(d.getModel() || ""); } catch (errModel) {}
+      if (model === "Power Distribution Device") continue;
+
+      var name = "";
+      var cls = "";
+      var powered = true;
+      try { name = String(d.getName() || ""); } catch (errName) {}
+      try { cls = String(d.getClassName() || ""); } catch (errCls) {}
+      try { powered = !!d.getPower(); } catch (errPwr) {}
+
+      var role = classifyDeviceRole(cls, model);
+      if (role !== "router" && role !== "switch") continue;
+      if (!powered) {
+        skipped.push(name + " (off)");
+        continue;
+      }
+
+      var cl = null;
+      try { cl = d.getCommandLine(); } catch (errCli) {}
+      if (!cl) {
+        skipped.push(name + " (no CLI)");
+        continue;
+      }
+
+      try {
+        var mode = "";
+        try { mode = String(cl.getMode() || ""); } catch (errMode) {}
+        if (/config/i.test(mode)) cl.enterCommand("end");
+        cl.enterCommand("write memory");
+        saved.push(name);
+      } catch (errWr) {
+        skipped.push(name + " (error)");
+      }
+    }
+  } catch (errNet) {}
+
+  var result = { action: "wr_all", saved: saved, skipped: skipped };
+  var wv = getActiveWebView();
+  if (wv && typeof wv.evaluateJavaScriptAsync === "function") {
+    wv.evaluateJavaScriptAsync(
+      "window.__stuActionResult && window.__stuActionResult(" + JSON.stringify(result) + ");"
+    );
+  }
+  return JSON.stringify(result);
+}
+
+/**
+ * Power on every powered-off device in the active Packet Tracer workspace
+ * and push an immediate telemetry refresh to the monitor window.
+ */
+function powerOnAll() {
+  var powered = [];
+  try {
+    var net = ipc.network();
+    var n = net ? net.getDeviceCount() : 0;
+    for (var i = 0; i < n; i++) {
+      var d = net.getDeviceAt(i);
+      if (!d) continue;
+      var model = "";
+      try { model = String(d.getModel() || ""); } catch (errModel) {}
+      if (model === "Power Distribution Device") continue;
+
+      var isOn = true;
+      try { isOn = !!d.getPower(); } catch (errPwr) {}
+      if (isOn) continue;
+
+      var name = "";
+      try { name = String(d.getName() || ""); } catch (errName) {}
+      try {
+        d.setPower(true);
+        try { d.skipBoot(); } catch (errBoot) {}
+        powered.push(name || ("device-" + i));
+      } catch (errSet) {}
+    }
+  } catch (errNet) {}
+
+  var result = { action: "power_on", powered: powered };
+  var wv = getActiveWebView();
+  if (wv && typeof wv.evaluateJavaScriptAsync === "function") {
+    wv.evaluateJavaScriptAsync(
+      "window.__stuActionResult && window.__stuActionResult(" + JSON.stringify(result) + ");"
+    );
+  }
+  getLabTelemetry();
+  return JSON.stringify(result);
 }
 
 /**
