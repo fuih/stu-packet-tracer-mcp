@@ -110,6 +110,17 @@ describe("parsePing — fallback / empty", () => {
     expect(r.sent).toBe(2);
     expect(r.successRate).toBe(100);
   });
+
+  test("Destination host unreachable is never miscounted as a successful reply", () => {
+    const raw = [
+      "Pinging 192.168.20.10 with 32 bytes of data:",
+      "Reply from 192.168.10.1: Destination host unreachable.",
+      "Reply from 192.168.10.1: Destination host unreachable.",
+    ].join("\n");
+    const r = parsePing(raw, "192.168.20.10");
+    expect(r.received).toBe(0);
+    expect(r.successRate).toBe(0);
+  });
 });
 
 describe("parseTraceroute — PC", () => {

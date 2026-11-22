@@ -92,71 +92,62 @@ function createFakeCliBridge(initialBuffer: string, options?: { paginateRunningC
   const sentCommands: string[] = [];
   let pageStep = 0;
 
+  const fakeCli = {
+    getOutput: () => buffer,
+    enterChar: (charCode: number) => {
+      if (charCode === 113) {
+        sentCommands.push("<KEY:q>");
+        buffer = buffer.replace(/--More--\s*$/, "\nR1#\n");
+      } else if (charCode === 32) {
+        sentCommands.push("<KEY:Space>");
+        pageStep++;
+        if (pageStep === 1) {
+          buffer = buffer.replace(/--More--\s*$/, "interface Gi0/0\n ip address 10.0.0.1 255.255.255.0\n --More-- ");
+        } else {
+          buffer = buffer.replace(/--More--\s*$/, "!\nend\n\nR1#\n");
+        }
+      }
+    },
+    enterCommand: (cmd: string) => {
+      sentCommands.push(cmd);
+      if (cmd === "no" && buffer.includes("[yes/no]")) {
+        buffer = "Press RETURN to get started!\n";
+      } else if (cmd === "" && buffer.includes("Press RETURN to get started!")) {
+        buffer = "Router>\n";
+      } else if (cmd === "enable") {
+        buffer += "enable\nR1#\n";
+      } else if (cmd === "terminal length 0") {
+        buffer += "terminal length 0\nR1#\n";
+      } else if (cmd === "configure terminal") {
+        buffer += "configure terminal\nEnter configuration commands, one per line.\nR1(config)#\n";
+      } else if (cmd === "end") {
+        buffer += "end\nR1#\n";
+      } else if (cmd === "show running-config") {
+        if (options?.paginateRunningConfig) {
+          pageStep = 0;
+          buffer += "show running-config\nBuilding configuration...\n!\nhostname R1\n --More-- ";
+        } else {
+          buffer += "show running-config\nBuilding configuration...\n!\nhostname R1\n!\nend\n\nR1#\n";
+        }
+      } else {
+        buffer += `${cmd}\nOK_OUTPUT\nR1#\n`;
+      }
+    },
+  };
+
+  const fakeIpc = {
+    network: () => ({
+      getDevice: () => ({
+        getCommandLine: () => fakeCli,
+      }),
+    }),
+  };
+
   const mockBridge = {
     async sendAndWait(js: string): Promise<string | null> {
-      // 1. Tail read
-      if (js.includes("Reading CLI tail")) {
-        const tail = buffer.length > 300 ? buffer.slice(-300) : buffer;
-        return JSON.stringify({ len: buffer.length, tail });
-      }
-
-      // 2. Pager key ('q' or ' ')
-      if (js.includes("Sending CLI pager key")) {
-        if (js.includes("113")) {
-          sentCommands.push("<KEY:q>");
-          buffer = buffer.replace(/--More--\s*$/, "\nR1#\n");
-        } else if (js.includes("32")) {
-          sentCommands.push("<KEY:Space>");
-          pageStep++;
-          if (pageStep === 1) {
-            buffer = buffer.replace(/--More--\s*$/, "interface Gi0/0\n ip address 10.0.0.1 255.255.255.0\n --More-- ");
-          } else {
-            buffer = buffer.replace(/--More--\s*$/, "!\nend\n\nR1#\n");
-          }
-        }
-        return "OK:char";
-      }
-
-      // 3. Read slice from offset
-      if (js.includes("Reading CLI output slice")) {
-        const m = /out\.substring\((\d+)\)/.exec(js);
-        const offset = m ? Number(m[1]) : 0;
-        return buffer.substring(offset);
-      }
-
-      // 4. Enter command
-      const cmdMatch = /cl\.enterCommand\(("[^"]*")\)/.exec(js);
-      if (cmdMatch) {
-        const cmd = JSON.parse(cmdMatch[1]!) as string;
-        const before = buffer.length;
-        sentCommands.push(cmd);
-
-        if (cmd === "no" && buffer.includes("[yes/no]")) {
-          buffer = "Press RETURN to get started!\n";
-        } else if (cmd === "" && buffer.includes("Press RETURN to get started!")) {
-          buffer = "Router>\n";
-        } else if (cmd === "enable") {
-          buffer += "enable\nR1#\n";
-        } else if (cmd === "terminal length 0") {
-          buffer += "terminal length 0\nR1#\n";
-        } else if (cmd === "configure terminal") {
-          buffer += "configure terminal\nEnter configuration commands, one per line.\nR1(config)#\n";
-        } else if (cmd === "end") {
-          buffer += "end\nR1#\n";
-        } else if (cmd === "show running-config") {
-          if (options?.paginateRunningConfig) {
-            pageStep = 0;
-            buffer += "show running-config\nBuilding configuration...\n!\nhostname R1\n --More-- ";
-          } else {
-            buffer += "show running-config\nBuilding configuration...\n!\nhostname R1\n!\nend\n\nR1#\n";
-          }
-        } else {
-          buffer += `${cmd}\nOK_OUTPUT\nR1#\n`;
-        }
-        return `${before}|${buffer.substring(before)}`;
-      }
-
-      return "OK";
+      const expr = js.replace(/^\s*\/\*[\s\S]*?\*\/\s*/, "");
+      const fn = new Function("ipc", `return ${expr}`);
+      return String(fn(fakeIpc));
     },
   } as unknown as Bridge;
 

@@ -242,7 +242,7 @@ export async function runPingMatrix(
   }
 
   const doWarmup = opts.warmup ?? true;
-  const timeoutMs = opts.timeoutMs ?? 20_000;
+  const timeoutMs = opts.timeoutMs ?? 35_000;
   const n = candidateRows.length;
 
   // Store outcomes keyed by "src=>dst" so final cell order matches candidateRows x candidateRows

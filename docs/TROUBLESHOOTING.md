@@ -115,5 +115,17 @@ BRIDGE_PORT=54322 MCP_PORT=39002 bunx stu-packet-tracer-mcp
 If you have not packaged `extension/dist/stu-mcp-bridge.pts` yet and want to test immediately:
 
 1. Start `stu-packet-tracer-mcp`.
-2. In Packet Tracer 9, open **Extensions -> Scripting -> Configure PT Script Modules...** -> **New**, open its webview debug console, or call `pt_bridge_bootstrap` (available offline) to print the minimal JavaScript polling snippet.
+2. In Packet Tracer 9, open **Extensions -> Scripting -> Configure PT Script Modules...** -> **New**, open its webview debug console, or call `pt_bridge_status` (available offline) to print the minimal JavaScript polling snippet.
 3. For normal daily use, package the open-source English extension in `extension/src/` by following [docs/BUILD_EXTENSION.md](BUILD_EXTENSION.md).
+
+---
+
+## 9. Commands Feel Slow (~1–2s Per Call Instead of ~30–100ms)
+
+**Symptoms:** Individual commands (`pt_run_cli`, `pt_ping_matrix`, `pt_auto_layout`) suddenly jump from ~30–100ms to ~1.5–2 seconds per IPC round-trip.
+
+**Cause:** Packet Tracer 9 runs the **Student MCP Bridge** UI inside Qt WebEngine (Chromium). When the Packet Tracer or Bridge monitor window is **minimized** or completely covered on another desktop/workspace, Qt WebEngine throttles background timers and XHR callbacks to ~1 tick per second.
+
+**Fixes:**
+1. Keep the **Student MCP Bridge** window unminimized (leaving it tiled or partially visible on your desktop is enough to keep round-trips at ~20–50ms).
+2. Prefer `pt_batch_build` and `pt_run_cli_batch` for multi-device setups so the entire topology builds and configures in 1–2 IPC calls even if Packet Tracer is in the background.

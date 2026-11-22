@@ -32,7 +32,9 @@ export interface RunOptions {
 }
 
 const DEFAULT_TIMEOUT = 30_000;
-const DEFAULT_POLL = 300;
+const DEFAULT_POLL = 500;
+const PARALLEL_INITIAL_DELAY_MS = 2_000;
+const PARALLEL_POLL_MS = 800;
 
 function readSinceMarkerJs(device: string, marker: string): string {
   return withLabel(
@@ -87,7 +89,11 @@ async function runAndWait(
   return last;
 }
 
-const PING_DONE = [/Ping statistics for/i, /Success rate is/i, /Destination host unreachable/i];
+const PING_DONE = [
+  /Packets:\s*Sent\s*=\s*\d+\s*,\s*Received\s*=\s*\d+\s*,\s*Lost\s*=\s*\d+/i,
+  /Success rate is \d+\s*percent\s*\(\d+\s*\/\s*\d+\)/i,
+  /Ping request could not find host/i,
+];
 const TRACE_DONE = [/Trace complete\./i, /Trace terminated/i, /Success rate is/i];
 
 export async function runPing(
@@ -184,6 +190,15 @@ function readPingSlicesBatchJs(
  * Execute multiple pings concurrently across distinct source devices in a single
  * batched IPC start + batched poll loop.
  */
+function isPingCompleteForTarget(raw: string, target: string): boolean {
+  if (!raw) return false;
+  // Require the summary line to appear after this target's header (or match directly)
+  // so leftover output from an earlier ping cannot satisfy the next wave.
+  const targetIdx = raw.lastIndexOf(target);
+  const relevant = targetIdx >= 0 ? raw.slice(targetIdx) : raw;
+  return PING_DONE.some(re => re.test(relevant));
+}
+
 export async function runPingsParallel(
   bridge: Bridge,
   jobs: readonly ParallelPingJob[],
@@ -196,8 +211,11 @@ export async function runPingsParallel(
     return [{ device: j.device, target: j.target, raw, result }];
   }
 
-  const timeoutMs = opts.timeoutMs ?? 25_000;
-  const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL;
+  const timeoutMs = opts.timeoutMs ?? 35_000;
+  const pollIntervalMs = opts.pollIntervalMs ?? PARALLEL_POLL_MS;
+  const initialDelayMs = opts.pollIntervalMs !== undefined
+    ? opts.pollIntervalMs
+    : Math.min(PARALLEL_INITIAL_DELAY_MS, Math.floor(timeoutMs / 4));
 
   const startRaw = await bridge.sendAndWait(startPingsBatchJs(jobs), { timeoutMs: 12_000 });
   if (startRaw === null) {
@@ -225,7 +243,7 @@ export async function runPingsParallel(
 
   const states = jobs.map((job, idx) => {
     const s = started[idx] ?? { ok: false, offset: 0, anchor: "", slice: "" };
-    const done = !s.ok || PING_DONE.some(re => re.test(s.slice));
+    const done = !s.ok || isPingCompleteForTarget(s.slice, job.target);
     return {
       index: idx,
       device: job.device,
@@ -238,11 +256,13 @@ export async function runPingsParallel(
   });
 
   const deadline = Date.now() + timeoutMs;
+  let firstPoll = true;
   while (Date.now() < deadline) {
     const active = states.filter(s => !s.done);
     if (active.length === 0) break;
 
-    await sleep(pollIntervalMs);
+    await sleep(firstPoll ? initialDelayMs : pollIntervalMs);
+    firstPoll = false;
     const pollRaw = await bridge.sendAndWait(
       readPingSlicesBatchJs(
         active.map(a => ({ index: a.index, device: a.device, offset: a.offset, anchor: a.anchor })),
@@ -257,7 +277,7 @@ export async function runPingsParallel(
         if (!st || st.done) continue;
         if (u.slice) {
           st.raw = u.slice;
-          if (PING_DONE.some(re => re.test(st.raw))) {
+          if (isPingCompleteForTarget(st.raw, st.target)) {
             st.done = true;
           }
         }

@@ -1,5 +1,6 @@
 import type { Bridge } from "../bridge/http-bridge.js";
 import { jsStr } from "../ipc/escape.js";
+import { invalidateModelCache } from "../ipc/device-model.js";
 import { withLabel, truncateForLabel } from "../ipc/label.js";
 import { invalidateDeviceCache } from "../util/devices.js";
 import { cleanCliOutput, cleanConsoleScrollback } from "./clean.js";
@@ -38,6 +39,7 @@ export function resetCliCache(device?: string): void {
     noTermLengthDevices.clear();
   }
   invalidateDeviceCache();
+  invalidateModelCache();
 }
 
 function extractCommandReplySlice(reply: string | null): string {
@@ -266,10 +268,86 @@ export async function prepareDevice(bridge: Bridge, device: string): Promise<voi
 }
 
 /**
- * Execute a single CLI command cleanly on a Packet Tracer device, handling:
+ * Single-round-trip CLI dispatcher: clears lingering `--More--`, optionally
+ * prepares the device (`[yes/no]` -> `no`, empty nudge, `enable`, `terminal length 0`),
+ * verifies interactive-prompt guards, executes `command`, and returns the immediate
+ * output slice plus anchor metadata as JSON.
+ */
+export function execCliOneShotJs(
+  deviceName: string,
+  command: string,
+  opts: {
+    readonly prepare: boolean;
+    readonly tryTermLen: boolean;
+    readonly allowInteractive: boolean;
+    readonly anchorLen?: number;
+  },
+): string {
+  const anchorLen = opts.anchorLen ?? 120;
+  return withLabel(
+    `CLI ${deviceName} → ${truncateForLabel(command)}`,
+    `(function(){` +
+      `var d=${NET}.getDevice(${jsStr(deviceName)});` +
+      `if(!d)return "ERR:not_found";` +
+      `var cl=d.getCommandLine();` +
+      `if(!cl)return "ERR:no_cli";` +
+      `function readTail(){var o=String(cl.getOutput()||"");return o.length>300?o.substring(o.length-300):o;}` +
+      `function trimEnd(s){return s.replace(/[\\s\\r\\n]+$/,"");}` +
+      `var tail=readTail();` +
+      `if(/--More--\\s*$/.test(tail)){` +
+        `if(typeof cl.enterChar==="function"){try{cl.enterChar(113,0);}catch(e1){cl.enterCommand("q");}}else{cl.enterCommand("q");}` +
+        `tail=readTail();` +
+      `}` +
+      `var termLenRejected=false;` +
+      `if(${opts.prepare ? "true" : "false"}){` +
+        `if(/initial configuration dialog\\?\\s*\\[yes\\/no\\]:?\\s*$/i.test(trimEnd(tail))){` +
+          `cl.enterCommand("no");` +
+          `cl.enterCommand("");` +
+          `tail=readTail();` +
+        `}` +
+        `if(!/[>#]\\s*$/.test(trimEnd(tail))){` +
+          `cl.enterCommand("");` +
+          `tail=readTail();` +
+        `}` +
+        `if(/>\\s*$/.test(trimEnd(tail))){` +
+          `cl.enterCommand("enable");` +
+          `tail=readTail();` +
+        `}` +
+        `if(${opts.tryTermLen ? "true" : "false"}&&/#\\s*$/.test(trimEnd(tail))){` +
+          `var tBefore=String(cl.getOutput()||"").length;` +
+          `cl.enterCommand("terminal length 0");` +
+          `var tReply=String(cl.getOutput()||"").substring(tBefore);` +
+          `if(tReply.indexOf("% Invalid")>=0||tReply.indexOf("^")>=0){termLenRejected=true;}` +
+          `tail=readTail();` +
+        `}` +
+      `}` +
+      `if(!${opts.allowInteractive ? "true" : "false"}&&/(?:\\[confirm\\]|\\[yes\\/no\\]:?)\\s*$/i.test(trimEnd(tail))){` +
+        `return "ERR:interactive:"+trimEnd(tail).slice(-60);` +
+      `}` +
+      `var out0=String(cl.getOutput()||"");` +
+      `var before=out0.length;` +
+      `var anchor=before>${anchorLen}?out0.substring(before-${anchorLen}):out0;` +
+      `cl.enterCommand(${jsStr(command)});` +
+      `var after=String(cl.getOutput()||"");` +
+      `var off=before;` +
+      `var slice="";` +
+      `if(anchor&&after.length>=before&&after.substring(before-anchor.length,before)===anchor){` +
+        `slice=after.substring(before);` +
+      `}else if(anchor){` +
+        `var idx=after.lastIndexOf(anchor);` +
+        `if(idx>=0){off=idx+anchor.length;slice=after.substring(off);}else{slice=after.substring(before);}` +
+      `}else{slice=after.substring(before);}` +
+      `return JSON.stringify({preTail:tail,offset:off,anchor:anchor,slice:slice,termLenRejected:termLenRejected});` +
+    `})()`,
+  );
+}
+
+/**
+ * Execute a single CLI command cleanly on a Packet Tracer device in 1 IPC round-trip
+ * on the synchronous fast path, falling back to pagination/settling only when needed:
  *  - Lingering `--More--` clearance before execution (preventing eaten characters)
+ *  - Automatic one-shot device preparation (dialog dismissal, `enable`, `terminal length 0`)
  *  - Mid-output `--More--` pagination (automatically sending Space until complete)
- *  - Settling until IOS prompt returns and output stabilizes
  *  - Stripping echoed command, pager artifacts, trailing prompt, and separating syslogs
  */
 export async function runCli(
@@ -278,54 +356,71 @@ export async function runCli(
   command: string,
   opts: RunCliOptions = {},
 ): Promise<CliRunResult> {
-  let preparedTail: string | null = null;
-  if (!opts.skipPrepare) {
-    preparedTail = await prepareDeviceWithTail(bridge, device);
-  }
-
-  // Reuse tail if prepareDevice just ran; otherwise perform a single pre-flight tail read
-  let tail = preparedTail !== null ? preparedTail : (await readTail(bridge, device)).tail;
-
-  // If previous output left the pager at --More--, dismiss with 'q' so the
-  // first character of our new command isn't eaten!
-  if (endsWithMore(tail)) {
-    await bridge.sendAndWait(sendCliPagerKeyJs(device, 113, "q"), { timeoutMs: 5_000 });
-    await sleep(60);
-    ({ tail } = await readTail(bridge, device));
-  }
-
-  if (!opts.allowInteractive && endsWithUnexpectedPrompt(tail)) {
-    throw new Error(
-      `Device "${device}" is waiting at an interactive prompt ("${tail.trim().slice(-60)}"). ` +
-      `Send an explicit response or pass allowInteractive: true.`,
-    );
-  }
-
-  const modeBefore: CliMode = detectPrompt(tail)?.mode ?? "unknown";
-
-  // Anchor tail before sending command so ring-buffered scrollback trims cannot zero out offset
-  const preAnchor = tail.length > 120 ? tail.slice(-120) : tail;
   const longRunning = isLongRunningCommand(command);
   const defaultSettle = longRunning ? 25_000 : 2_000;
   const settleMs = opts.settleMs ?? defaultSettle;
   const pollIntervalMs = opts.pollIntervalMs ?? (longRunning ? 120 : 40);
   const requiredStable = longRunning ? 2 : 1;
   const rpcTimeout = opts.timeoutMs ?? Math.max(15_000, settleMs + 5_000);
+  const shouldPrepare = !opts.skipPrepare && !preparedDevices.has(device);
 
-  // Dispatch command and capture starting byte offset
-  const initialRes = await bridge.sendAndWait(enterCommandOffsetJs(device, command), {
-    timeoutMs: rpcTimeout,
-  });
+  const initialRes = await bridge.sendAndWait(
+    execCliOneShotJs(device, command, {
+      prepare: shouldPrepare,
+      tryTermLen: shouldPrepare && !noTermLengthDevices.has(device),
+      allowInteractive: opts.allowInteractive === true,
+    }),
+    { timeoutMs: rpcTimeout },
+  );
   if (initialRes === null) {
     throw new Error(`Timed out sending CLI command "${command}" to "${device}".`);
+  }
+  if (initialRes.startsWith("ERR:interactive:")) {
+    throw new Error(
+      `Device "${device}" is waiting at an interactive prompt ("${initialRes.slice("ERR:interactive:".length)}"). ` +
+      `Send an explicit response or pass allowInteractive: true.`,
+    );
   }
   if (initialRes.startsWith("ERR:")) {
     throw new Error(`Device "${device}" error: ${initialRes}`);
   }
 
-  const sepIdx = initialRes.indexOf("|");
-  const beforeOffset = sepIdx >= 0 ? Number(initialRes.slice(0, sepIdx)) : 0;
-  let rawSlice = sepIdx >= 0 ? initialRes.slice(sepIdx + 1) : initialRes;
+  let preTail = "";
+  let beforeOffset = 0;
+  let preAnchor = "";
+  let rawSlice = "";
+
+  try {
+    const parsed = JSON.parse(initialRes) as {
+      preTail?: string;
+      offset?: number;
+      anchor?: string;
+      slice?: string;
+      termLenRejected?: boolean;
+    };
+    preTail = parsed.preTail ?? "";
+    beforeOffset = parsed.offset ?? 0;
+    preAnchor = parsed.anchor ?? "";
+    rawSlice = parsed.slice ?? "";
+    if (shouldPrepare) {
+      if (parsed.termLenRejected) noTermLengthDevices.add(device);
+      preparedDevices.add(device);
+    }
+  } catch {
+    const sepIdx = initialRes.indexOf("|");
+    beforeOffset = sepIdx >= 0 ? Number(initialRes.slice(0, sepIdx)) : 0;
+    rawSlice = sepIdx >= 0 ? initialRes.slice(sepIdx + 1) : initialRes;
+  }
+
+  const modeBefore: CliMode = detectPrompt(preTail)?.mode ?? "unknown";
+
+  // Synchronous fast path: PT 9 executes most `show` / config commands synchronously
+  // inside `enterCommand()`, so if a clean non-dialog prompt already returned, skip
+  // extra polling round-trips completely (cuts 2-4s in unfocused PT!).
+  const initPrompt = !longRunning && rawSlice.length > 0 && !endsWithMore(rawSlice) && !endsWithUnexpectedPrompt(rawSlice)
+    ? detectPrompt(rawSlice)
+    : null;
+  const alreadySettled = initPrompt !== null && initPrompt.mode !== "dialog";
 
   let deadline = Date.now() + settleMs;
   const hardDeadline = Date.now() + Math.max(45_000, settleMs * 2);
@@ -334,8 +429,8 @@ export async function runCli(
   let pagesSent = 0;
   const maxPages = 60;
 
-  // Poll until prompt returns and stabilizes, handling --More-- pages along the way
-  while (Date.now() < deadline && Date.now() < hardDeadline) {
+  // Poll only if command did not settle synchronously or requires --More-- pagination
+  while (!alreadySettled && Date.now() < deadline && Date.now() < hardDeadline) {
     if (endsWithMore(rawSlice) && pagesSent < maxPages) {
       pagesSent++;
       await bridge.sendAndWait(sendCliPagerKeyJs(device, 32, " "), { timeoutMs: 5_000 });

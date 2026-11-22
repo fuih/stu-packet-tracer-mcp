@@ -153,7 +153,8 @@ export class Bridge {
   status(): BridgeStatus {
     const since = this.lastSeenAt;
     const isParked = this.parkedWaiters.length > 0;
-    const connected = isParked || (since !== null && Date.now() - since < 3_000);
+    const isInFlight = this.inFlightId !== null && since !== null && Date.now() - since < 30_000;
+    const connected = isParked || isInFlight || (since !== null && Date.now() - since < 5_000);
     return {
       connected,
       port: this.port,
@@ -166,7 +167,8 @@ export class Bridge {
   statusV1(): BridgeV1Status {
     const since = this.lastSeenAt;
     const isParked = this.parkedWaiters.length > 0;
-    const connected = isParked || (since !== null && Date.now() - since < 3_000);
+    const isInFlight = this.inFlightId !== null && since !== null && Date.now() - since < 30_000;
+    const connected = isParked || isInFlight || (since !== null && Date.now() - since < 5_000);
     return {
       connected,
       lastSeenMs: since !== null ? Date.now() - since : null,

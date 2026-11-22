@@ -16,6 +16,7 @@
 
 import { resolveModel } from "../catalog/devices.js";
 import type { Bridge } from "../bridge/http-bridge.js";
+import { primeModelCache } from "../ipc/device-model.js";
 import { withLabel } from "../ipc/label.js";
 import { primeDeviceCache } from "../util/devices.js";
 import { linkRegistry } from "./link-registry.js";
@@ -226,6 +227,7 @@ export async function captureSnapshot(
   const merged = [...parsed.links];
   const deviceNames = new Set(parsed.devices.map(d => d.name));
   primeDeviceCache(bridge, [...deviceNames]);
+  primeModelCache(bridge, parsed.devices);
   for (const obs of linkRegistry.all()) {
     // Filter out links that reference devices PT no longer reports —
     // typically because the user removed them through the GUI without

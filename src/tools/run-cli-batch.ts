@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { prepareDevice } from "../cli/engine.js";
-import { fetchDeviceModel } from "../ipc/device-model.js";
-import { bulkCliJs, saveRunningConfigsBatchJs } from "../ipc/generator.js";
+import { fetchDeviceModelsBatch } from "../ipc/device-model.js";
+import { bulkCliBatchJs } from "../ipc/generator.js";
 import { isTeachModeEnabled } from "../student/teach.js";
 import { resolveCanvasDevice } from "../util/devices.js";
 import { defineTool } from "./define.js";
@@ -19,7 +18,7 @@ const InputSchema = z.object({
   targets: z.array(TargetSchema).min(1)
     .describe("List of devices and their Cisco IOS command blocks to apply in a single tool call."),
   save: z.boolean().default(false)
-    .describe("If true, save running-config to startup-config (`write memory`) on all succeeded devices in one batched call."),
+    .describe("If true, save running-config to startup-config (`write memory`) on all succeeded devices in the same batched call."),
   tail_chars: z.number().int().min(100).max(20_000).default(1_500)
     .describe("Maximum trailing console output characters to return per device."),
   dry_run: z.boolean().optional()
@@ -38,7 +37,7 @@ interface BatchCliDeviceResult {
 export const registerRunCliBatchTool = defineTool({
   name: "pt_run_cli_batch",
   description:
-    "Push multi-line Cisco IOS configuration blocks to multiple routers and switches in a single MCP tool call (optionally saving startup-config with `write memory` across all devices in one batched call). Automatically prepares each CLI and strips unsupported trunk encapsulation lines on 2960/3650 switches.",
+    "Push multi-line Cisco IOS configuration blocks to multiple routers and switches in a single batched IPC call (optionally saving startup-config with `write memory` in the same round-trip). Automatically dismisses boot dialogs, elevates to privileged EXEC, and strips unsupported trunk encapsulation lines on 2960/3650 switches.",
   category: "CLI & Diagnostics",
   input: InputSchema,
   handler: async ({ targets, save, tail_chars, dry_run }, { bridge }) => {
@@ -63,86 +62,138 @@ export const registerRunCliBatchTool = defineTool({
       };
     }
 
-    const results: BatchCliDeviceResult[] = [];
-    const succeededDevices: string[] = [];
+    // 1. Resolve all device names (uses 5s cache -> 0 extra IPC calls on hit)
+    const resolvedEntries: Array<{
+      readonly index: number;
+      readonly requested: string;
+      readonly resolved?: string;
+      readonly rawBlock: string;
+      readonly error?: string;
+    }> = [];
 
-    for (const target of targets) {
-      const commandBlock = Array.isArray(target.commands)
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i]!;
+      const rawBlock = Array.isArray(target.commands)
         ? target.commands.join("\n")
         : target.commands;
       try {
-        const resolvedDevice = await resolveCanvasDevice(bridge, target.device);
-        await prepareDevice(bridge, resolvedDevice);
-
-        const className = await fetchDeviceModel(bridge, resolvedDevice);
-        const shouldFilter = classRejectsEncapsulation(className);
-        const { filtered, droppedCount } = shouldFilter
-          ? stripEncapsulationLines(commandBlock)
-          : { filtered: commandBlock, droppedCount: 0 };
-
-        const reply = await bridge.sendAndWait(bulkCliJs(resolvedDevice, filtered, tail_chars), {
-          timeoutMs: 60_000,
-        });
-        if (!reply || reply.startsWith("ERR:") || reply.startsWith("ERROR:")) {
-          results.push({
-            device: resolvedDevice,
-            ok: false,
-            count: 0,
-            droppedEncapCount: droppedCount,
-            output: "",
-            error: reply ?? "timeout",
-          });
-          continue;
-        }
-
-        const newlineIdx = reply.indexOf("\n");
-        if (!reply.startsWith("BULK|") || newlineIdx === -1) {
-          results.push({
-            device: resolvedDevice,
-            ok: false,
-            count: 0,
-            droppedEncapCount: droppedCount,
-            output: reply.slice(0, 200),
-            error: "unexpected reply shape",
-          });
-          continue;
-        }
-
-        const header = reply.slice(0, newlineIdx);
-        const output = reply.slice(newlineIdx + 1);
-        const count = Number(header.split("|")[1] ?? "0");
-        results.push({
-          device: resolvedDevice,
-          ok: true,
-          count,
-          droppedEncapCount: droppedCount,
-          output,
-        });
-        succeededDevices.push(resolvedDevice);
+        const resolved = await resolveCanvasDevice(bridge, target.device);
+        resolvedEntries.push({ index: i, requested: target.device, resolved, rawBlock });
       } catch (err) {
-        results.push({
-          device: target.device,
-          ok: false,
-          count: 0,
-          droppedEncapCount: 0,
-          output: "",
+        resolvedEntries.push({
+          index: i,
+          requested: target.device,
+          rawBlock,
           error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
-    let savedCount = 0;
-    if (save && succeededDevices.length > 0) {
-      const uniqueTargets = [...new Set(succeededDevices)];
-      const saveReply = await bridge.sendAndWait(saveRunningConfigsBatchJs(uniqueTargets), {
-        timeoutMs: Math.max(15_000, uniqueTargets.length * 4_000),
+    const validEntries = resolvedEntries.filter(e => e.resolved !== undefined);
+    const modelMap = validEntries.length > 0
+      ? await fetchDeviceModelsBatch(bridge, validEntries.map(e => e.resolved!))
+      : new Map<string, string | null>();
+
+    const batchItems: Array<{
+      readonly entryIndex: number;
+      readonly device: string;
+      readonly commands: string[];
+      readonly droppedEncapCount: number;
+    }> = [];
+
+    for (const entry of validEntries) {
+      const devName = entry.resolved!;
+      const model = modelMap.get(devName) ?? null;
+      const shouldFilter = classRejectsEncapsulation(model);
+      const { filtered, droppedCount } = shouldFilter
+        ? stripEncapsulationLines(entry.rawBlock)
+        : { filtered: entry.rawBlock, droppedCount: 0 };
+      const lines = filtered.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      batchItems.push({
+        entryIndex: entry.index,
+        device: devName,
+        commands: lines,
+        droppedEncapCount: droppedCount,
       });
-      if (saveReply && saveReply.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(saveReply) as Array<{ ok: boolean }>;
-          savedCount = parsed.filter(p => p.ok).length;
-        } catch {}
+    }
+
+    const resultByIndex = new Map<number, BatchCliDeviceResult>();
+    for (const entry of resolvedEntries) {
+      if (entry.error) {
+        resultByIndex.set(entry.index, {
+          device: entry.requested,
+          ok: false,
+          count: 0,
+          droppedEncapCount: 0,
+          output: "",
+          error: entry.error,
+        });
       }
+    }
+
+    let savedCount = 0;
+    if (batchItems.length > 0) {
+      const reply = await bridge.sendAndWait(
+        bulkCliBatchJs(
+          batchItems.map(b => ({ device: b.device, commands: b.commands })),
+          { tailChars: tail_chars, save },
+        ),
+        { timeoutMs: Math.max(30_000, batchItems.length * 15_000) },
+      );
+
+      if (!reply || !reply.startsWith("[")) {
+        for (const item of batchItems) {
+          resultByIndex.set(item.entryIndex, {
+            device: item.device,
+            ok: false,
+            count: 0,
+            droppedEncapCount: item.droppedEncapCount,
+            output: "",
+            error: reply ?? "timeout",
+          });
+        }
+      } else {
+        try {
+          const outcomes = JSON.parse(reply) as Array<{
+            device: string;
+            ok: boolean;
+            count: number;
+            saved?: boolean;
+            output: string;
+            error?: string;
+          }>;
+          for (let i = 0; i < batchItems.length; i++) {
+            const item = batchItems[i]!;
+            const out = outcomes[i];
+            if (out?.saved) savedCount++;
+            resultByIndex.set(item.entryIndex, {
+              device: item.device,
+              ok: !!out?.ok,
+              count: out?.count ?? 0,
+              droppedEncapCount: item.droppedEncapCount,
+              output: out?.output ?? "",
+              ...(out?.error ? { error: out.error } : {}),
+            });
+          }
+        } catch {
+          for (const item of batchItems) {
+            resultByIndex.set(item.entryIndex, {
+              device: item.device,
+              ok: false,
+              count: 0,
+              droppedEncapCount: item.droppedEncapCount,
+              output: "",
+              error: `unexpected reply: ${reply.slice(0, 120)}`,
+            });
+          }
+        }
+      }
+    }
+
+    const results: BatchCliDeviceResult[] = [];
+    for (let i = 0; i < targets.length; i++) {
+      const r = resultByIndex.get(i);
+      if (r) results.push(r);
     }
 
     const okTotal = results.filter(r => r.ok).length;

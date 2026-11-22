@@ -1399,4 +1399,90 @@ export function nudgeCliBatchJs(deviceNames: readonly string[]): string {
   );
 }
 
+/**
+ * Move multiple devices on the Logical workspace in a single IPC call.
+ * Returns a JSON array of `{ name, ok, error? }`.
+ */
+export function moveDevicesBatchJs(
+  moves: ReadonlyArray<{ readonly name: string; readonly x: number; readonly y: number }>,
+): string {
+  return withLabel(
+    `Moving ${moves.length} device(s) in batch`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var specs=${JSON.stringify(moves)};` +
+      `var res=[];` +
+      `for(var i=0;i<specs.length;i++){` +
+        `var s=specs[i];` +
+        `try{` +
+          `var d=net.getDevice(s.name);` +
+          `if(!d){res.push({name:s.name,ok:false,error:"ERR:not_found"});continue;}` +
+          `d.moveToLocation(s.x,s.y);` +
+          `res.push({name:s.name,ok:true});` +
+        `}catch(err){` +
+          `res.push({name:s.name,ok:false,error:"ERROR:"+err});` +
+        `}` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Push multi-line Cisco IOS CLI blocks across multiple devices in ONE Script Engine call,
+ * automatically dismissing boot dialogs, elevating user EXEC (`>`) to privileged (`#`),
+ * and optionally persisting `write memory` on every target.
+ */
+export function bulkCliBatchJs(
+  items: ReadonlyArray<{ readonly device: string; readonly commands: readonly string[] }>,
+  opts: { readonly tailChars?: number; readonly save?: boolean } = {},
+): string {
+  const tailChars = opts.tailChars ?? 1_500;
+  const save = opts.save === true;
+  const specs = items.map(it => ({
+    device: it.device,
+    commands: it.commands.map(c => c.trim()).filter(c => c.length > 0),
+  }));
+  return withLabel(
+    `Configuring ${items.length} device(s) in batch${save ? " (+ save)" : ""}`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var specs=${JSON.stringify(specs)};` +
+      `var tailMax=${tailChars};` +
+      `var doSave=${save ? "true" : "false"};` +
+      `var res=[];` +
+      `for(var i=0;i<specs.length;i++){` +
+        `var s=specs[i];` +
+        `try{` +
+          `var d=net.getDevice(s.device);` +
+          `if(!d){res.push({device:s.device,ok:false,count:0,saved:false,output:"",error:"ERR:not_found"});continue;}` +
+          `var cl=d.getCommandLine();` +
+          `if(!cl){res.push({device:s.device,ok:false,count:0,saved:false,output:"",error:"ERR:no_cli"});continue;}` +
+          `${SAFE_BOOT_DISMISS_JS}` +
+          `var pr="";try{pr=String(cl.getPrompt()||"").trim();}catch(ep){}` +
+          `if(pr.length>0&&pr.charAt(pr.length-1)===">"){` +
+            `var firstCmd=s.commands.length>0?s.commands[0].toLowerCase():"";` +
+            `if(firstCmd!=="enable"&&firstCmd!==("e"+"n")){cl.enterCommand("enable");}` +
+          `}` +
+          `var before=String(cl.getOutput()||"").length;` +
+          `for(var k=0;k<s.commands.length;k++){cl.enterCommand(s.commands[k]);}` +
+          `var saved=false;` +
+          `if(doSave){` +
+            `var mode="";try{mode=String(cl.getMode()||"");}catch(em){}` +
+            `if(/config/i.test(mode))cl.enterCommand("end");` +
+            `cl.enterCommand("write memory");` +
+            `saved=true;` +
+          `}` +
+          `var full=String(cl.getOutput()||"").substring(before);` +
+          `if(full.length>tailMax)full=full.substring(full.length-tailMax);` +
+          `res.push({device:s.device,ok:true,count:s.commands.length,saved:saved,output:full});` +
+        `}catch(err){` +
+          `res.push({device:s.device,ok:false,count:0,saved:false,output:"",error:"ERROR:"+err});` +
+        `}` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
 export const ipcRoots = { LW, NET } as const;

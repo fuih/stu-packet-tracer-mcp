@@ -247,12 +247,12 @@ Execute a Cisco IOS CLI command on a router or switch and return its console out
 
 ### `pt_run_cli_batch`
 
-Push multi-line Cisco IOS configuration blocks to multiple routers and switches in a single MCP tool call (optionally saving startup-config with `write memory` across all devices in one batched call). Automatically prepares each CLI and strips unsupported trunk encapsulation lines on 2960/3650 switches.
+Push multi-line Cisco IOS configuration blocks to multiple routers and switches in a single batched IPC call (optionally saving startup-config with `write memory` in the same round-trip). Automatically dismisses boot dialogs, elevates to privileged EXEC, and strips unsupported trunk encapsulation lines on 2960/3650 switches.
 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `targets` | object[] | Yes | List of devices and their Cisco IOS command blocks to apply in a single tool call. |
-| `save` | boolean | No | If true, save running-config to startup-config (`write memory`) on all succeeded devices in one batched call. (default: `false`) |
+| `save` | boolean | No | If true, save running-config to startup-config (`write memory`) on all succeeded devices in the same batched call. (default: `false`) |
 | `tail_chars` | integer | No | Maximum trailing console output characters to return per device. (default: `1500`) |
 | `dry_run` | boolean | No | Teach mode: preview all command blocks without modifying Packet Tracer. |
 

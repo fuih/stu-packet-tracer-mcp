@@ -4,7 +4,9 @@ import type { Bridge } from "../src/bridge/http-bridge.js";
 import { waitForCliReadyAll } from "../src/ipc/cli-wait.js";
 import {
   addDevicesBatchJs,
+  bulkCliBatchJs,
   createLinksBatchJs,
+  moveDevicesBatchJs,
   saveRunningConfigsBatchJs,
   setEndpointsStaticIpBatchJs,
 } from "../src/ipc/generator.js";
@@ -74,8 +76,13 @@ describe("Batched IPC Generators", () => {
       { device: "PC1", port: "FastEthernet0", ip: "192.168.1.10", mask: "255.255.255.0", gateway: "192.168.1.1" },
     ]);
     const saveJs = saveRunningConfigsBatchJs(["R1", "SW1"]);
+    const moveJs = moveDevicesBatchJs([{ name: "R1", x: 120, y: 100 }, { name: "SW1", x: 120, y: 250 }]);
+    const cliBatchJs = bulkCliBatchJs(
+      [{ device: "R1", commands: ["configure terminal", "hostname R1", "end"] }],
+      { save: true, tailChars: 1000 },
+    );
 
-    for (const script of [devJs, linkJs, pcJs, saveJs]) {
+    for (const script of [devJs, linkJs, pcJs, saveJs, moveJs, cliBatchJs]) {
       const expr = script.replace(/^\s*\/\*[\s\S]*?\*\/\s*/, "");
       expect(() => new Function("ipc", `return ${expr}`)).not.toThrow();
     }

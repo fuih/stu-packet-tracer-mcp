@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { captureSnapshot } from "../canvas/snapshot.js";
 import { gridLayoutCanvas } from "../canvas/layout.js";
-import { moveDeviceJs } from "../ipc/generator.js";
+import { moveDevicesBatchJs } from "../ipc/generator.js";
 import { errorResult, requireConnectedBridge, textResult } from "./helpers.js";
 import type { ToolModule } from "./types.js";
 
@@ -43,11 +43,21 @@ export const registerAutoLayoutTool: ToolModule = ({ bridge, server }) => {
       }
 
       const failures: string[] = [];
-      for (const move of moves) {
-        const reply = await bridge.sendAndWait(moveDeviceJs(move.name, move.x, move.y), { timeoutMs: 5_000 });
-        if (reply === null || (typeof reply === "string" && reply.startsWith("ERR"))) {
-          failures.push(`${move.name}: ${reply ?? "timeout"}`);
+      const reply = await bridge.sendAndWait(moveDevicesBatchJs(moves), {
+        timeoutMs: Math.max(10_000, moves.length * 1_500),
+      });
+      if (reply === null) {
+        return errorResult(`Batch move timed out for ${moves.length} device(s).`);
+      }
+      try {
+        const outcomes = JSON.parse(reply) as Array<{ name: string; ok: boolean; error?: string }>;
+        for (const item of outcomes) {
+          if (!item.ok) {
+            failures.push(`${item.name}: ${item.error ?? "failed"}`);
+          }
         }
+      } catch {
+        return errorResult(`Unexpected batch move reply: ${reply.slice(0, 120)}`);
       }
 
       if (failures.length > 0) {

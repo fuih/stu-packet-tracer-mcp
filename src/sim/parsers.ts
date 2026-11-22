@@ -97,8 +97,9 @@ export function parsePing(raw: string, target: string): PingResult {
       raw,
     };
   }
-  // Fallback: count "Reply from" / "!" markers — useful for partial output.
-  const replyCount = (raw.match(/Reply from/gi) ?? []).length;
+  // Fallback: count real echo replies ("Reply from ...: bytes=") / "!" markers —
+  // never treat "Reply from X: Destination host unreachable." as a successful reply.
+  const replyCount = (raw.match(/Reply from [^:\n]+:\s*bytes=\d+/gi) ?? []).length;
   const bangCount = (raw.match(/!/g) ?? []).length;
   if (bangCount > 0 || replyCount > 0) {
     const received = Math.max(replyCount, bangCount);
