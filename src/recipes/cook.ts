@@ -19,14 +19,19 @@ import {
   linkKey,
 } from "../canvas/types.js";
 import {
-  addDeviceJs,
-  createLinkJs,
-  linkUpStatusJs,
-  saveRunningConfigJs,
+  addDevicesBatchJs,
+  bulkCliJs,
+  createLinksBatchJs,
+  linksUpStatusBatchJs,
+  saveRunningConfigsBatchJs,
+  type AddDeviceArgs,
+  type CreateLinkArgs,
 } from "../ipc/generator.js";
 import { linkRegistry } from "../canvas/link-registry.js";
+import { resetCliCache } from "../cli/engine.js";
 import { wrapInConfig } from "../ipc/cli-prologue.js";
-import { waitForCliReady } from "../ipc/cli-wait.js";
+import { waitForCliReadyAll } from "../ipc/cli-wait.js";
+import { invalidateDeviceCache } from "../util/devices.js";
 import {
   validateBlueprintReferences,
   withDefaults,
@@ -87,6 +92,8 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
   let snap = await captureSnapshot(bridge);
   const placedDevices: string[] = [];
   const skippedDevices: { name: string; reason: string }[] = [];
+  const toPlace: AddDeviceArgs[] = [];
+
   for (const dev of blueprint.devices) {
     if (snap.devices.find(d => d.name === dev.name)) {
       skippedDevices.push({ name: dev.name, reason: "already on canvas" });
@@ -97,23 +104,46 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
       skippedDevices.push({ name: dev.name, reason: `unknown model '${dev.model}'` });
       continue;
     }
-    const reply = await bridge.sendAndWait(
-      addDeviceJs({ name: dev.name, category: resolved.category, model: resolved.ptType, x: dev.x, y: dev.y }),
-      { timeoutMs: 15_000 },
-    );
-    if (reply === null) throw new Error(`addDevice for ${dev.name} timed out`);
-    if (reply.startsWith("ERR:") || reply.startsWith("ERROR:")) {
-      skippedDevices.push({ name: dev.name, reason: reply });
-      continue;
-    }
-    placedDevices.push(dev.name);
+    toPlace.push({
+      name: dev.name,
+      category: resolved.category,
+      model: resolved.ptType,
+      x: dev.x,
+      y: dev.y,
+    });
   }
 
+  if (toPlace.length > 0) {
+    const reply = await bridge.sendAndWait(addDevicesBatchJs(toPlace), {
+      timeoutMs: Math.max(20_000, toPlace.length * 4_000),
+    });
+    if (reply === null) throw new Error(`batch addDevice timed out (${toPlace.length} device(s))`);
+    let outcomes: Array<{ name: string; ok: boolean; error?: string }>;
+    try {
+      outcomes = JSON.parse(reply);
+    } catch {
+      throw new Error(`Unexpected batch addDevice reply: ${reply.slice(0, 120)}`);
+    }
+    for (const item of outcomes) {
+      if (item.ok) {
+        placedDevices.push(item.name);
+        resetCliCache(item.name);
+      } else {
+        skippedDevices.push({ name: item.name, reason: item.error ?? "addDevice failed" });
+      }
+    }
+    invalidateDeviceCache(bridge);
+  }
+
+  const cliDevicesToWait: string[] = [];
   for (const dev of blueprint.devices) {
     const resolved = resolveModel(dev.model);
     if (!resolved || (resolved.category !== "router" && resolved.category !== "switch")) continue;
     if (!snap.devices.find(d => d.name === dev.name) && !placedDevices.includes(dev.name)) continue;
-    await waitForCliReady(bridge, dev.name);
+    cliDevicesToWait.push(dev.name);
+  }
+  if (cliDevicesToWait.length > 0) {
+    await waitForCliReadyAll(bridge, cliDevicesToWait);
   }
 
   // Refresh snapshot before wiring so the link-presence test is accurate.
@@ -121,6 +151,7 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
   const existingLinks = new Set(snap.links.map(linkKey));
   const placedLinks: string[] = [];
   const skippedLinks: { link: string; reason: string }[] = [];
+  const linksToWire: Array<{ args: CreateLinkArgs; tag: string; key: string }> = [];
 
   for (const lnk of blueprint.links) {
     const candidate: LinkObservation = {
@@ -139,26 +170,43 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
       skippedLinks.push({ link: tag, reason: "endpoint missing on canvas" });
       continue;
     }
-    const reply = await bridge.sendAndWait(
-      createLinkJs({
+    linksToWire.push({
+      args: {
         deviceA: lnk.aDevice,
         portA: lnk.aPort,
         deviceB: lnk.bDevice,
         portB: lnk.bPort,
         cable: lnk.cable,
-      }),
-      { timeoutMs: 15_000 },
-    );
-    if (reply === null) throw new Error(`createLink for ${tag} timed out`);
-    if (reply.startsWith("ERR:") || reply.startsWith("ERROR:")) {
-      throw new Error(`createLink for ${tag} failed: ${reply}`);
-    }
-    // Keep registry coherent — PT 9 Link API is opaque
-    // and captureSnapshot depends on the registry to know link pairs.
-    // See canvas/link-registry.ts.
-    linkRegistry.register(lnk.aDevice, lnk.aPort, lnk.bDevice, lnk.bPort);
-    placedLinks.push(tag);
+      },
+      tag,
+      key,
+    });
     existingLinks.add(key);
+  }
+
+  if (linksToWire.length > 0) {
+    const reply = await bridge.sendAndWait(
+      createLinksBatchJs(linksToWire.map(l => l.args)),
+      { timeoutMs: Math.max(20_000, linksToWire.length * 3_000) },
+    );
+    if (reply === null) throw new Error(`batch createLink timed out (${linksToWire.length} link(s))`);
+    let outcomes: Array<{ index: number; ok: boolean; error?: string }>;
+    try {
+      outcomes = JSON.parse(reply);
+    } catch {
+      throw new Error(`Unexpected batch createLink reply: ${reply.slice(0, 120)}`);
+    }
+    for (let i = 0; i < linksToWire.length; i++) {
+      const entry = linksToWire[i]!;
+      const res = outcomes[i];
+      if (!res || !res.ok) {
+        throw new Error(`createLink for ${entry.tag} failed: ${res?.error ?? "unknown error"}`);
+      }
+      // Keep registry coherent — PT 9 Link API is opaque
+      // and captureSnapshot depends on the registry to know link pairs.
+      linkRegistry.register(entry.args.deviceA, entry.args.portA, entry.args.deviceB, entry.args.portB);
+      placedLinks.push(entry.tag);
+    }
   }
 
   await waitForBlueprintLinks(bridge, blueprint.links);
@@ -225,7 +273,7 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
     for (const block of blueprint.extraCli) {
       try {
         const reply = await bridge.sendAndWait(
-          (await import("../ipc/generator.js")).bulkCliJs(
+          bulkCliJs(
             block.device,
             wrapInConfig(block.commands),
           ),
@@ -279,17 +327,30 @@ export async function cookBlueprint(bridge: Bridge, raw: Blueprint): Promise<Coo
  * pass to switches.
  */
 async function persistAllConfigs(bridge: Bridge, blueprint: Blueprint): Promise<void> {
+  const targets: string[] = [];
   for (const dev of blueprint.devices) {
     const resolved = resolveModel(dev.model);
     if (!resolved) continue;
     if (resolved.category !== "router" && resolved.category !== "switch") continue;
-    try {
-      const reply = await bridge.sendAndWait(saveRunningConfigJs(dev.name), { timeoutMs: 15_000 });
-      if (reply === null || (reply.startsWith("ERR:") && !reply.includes("not_found"))) {
-        throw new Error(`write memory on ${dev.name} failed: ${reply ?? "timeout"}`);
-      }
-    } catch (err) {
-      throw new Error(`failed to persist startup-config on ${dev.name}: ${(err as Error).message}`);
+    targets.push(dev.name);
+  }
+  if (targets.length === 0) return;
+
+  const reply = await bridge.sendAndWait(saveRunningConfigsBatchJs(targets), {
+    timeoutMs: Math.max(20_000, targets.length * 5_000),
+  });
+  if (reply === null) {
+    throw new Error(`batch write memory timed out (${targets.length} device(s))`);
+  }
+  let outcomes: Array<{ device: string; ok: boolean; error?: string }>;
+  try {
+    outcomes = JSON.parse(reply);
+  } catch {
+    throw new Error(`Unexpected batch write memory reply: ${reply.slice(0, 120)}`);
+  }
+  for (const item of outcomes) {
+    if (!item.ok && !(item.error && item.error.includes("not_found"))) {
+      throw new Error(`failed to persist startup-config on ${item.device}: ${item.error ?? "unknown error"}`);
     }
   }
 }
@@ -344,25 +405,43 @@ async function waitForBlueprintLinks(
   if (links.length === 0) return;
   const deadline = Date.now() + timeoutMs;
   let pending: string[] = [];
+  const specs = links.map(lnk => ({
+    deviceA: lnk.aDevice,
+    portA: lnk.aPort,
+    deviceB: lnk.bDevice,
+    portB: lnk.bPort,
+    tag: `${lnk.aDevice}/${lnk.aPort} <-> ${lnk.bDevice}/${lnk.bPort}`,
+  }));
 
   while (Date.now() < deadline) {
     pending = [];
-    for (const lnk of links) {
-      const tag = `${lnk.aDevice}/${lnk.aPort} <-> ${lnk.bDevice}/${lnk.bPort}`;
-      const reply = await bridge.sendAndWait(
-        linkUpStatusJs(lnk.aDevice, lnk.aPort, lnk.bDevice, lnk.bPort),
-        { timeoutMs: 5_000 },
-      );
-      if (reply === null || reply.startsWith("ERR")) {
-        pending.push(`${tag} (status=${reply ?? "timeout"})`);
-        continue;
+    const reply = await bridge.sendAndWait(
+      linksUpStatusBatchJs(specs),
+      { timeoutMs: 10_000 },
+    );
+    if (reply === null) {
+      pending.push("batch link status timed out");
+    } else {
+      let statuses: string[] = [];
+      try {
+        statuses = JSON.parse(reply) as string[];
+      } catch {
+        statuses = [];
       }
-      if (!isLinkPresent(reply)) {
-        pending.push(`${tag} (${reply})`);
+      for (let i = 0; i < specs.length; i++) {
+        const st = statuses[i];
+        const tag = specs[i]!.tag;
+        if (!st || st.startsWith("ERR")) {
+          pending.push(`${tag} (status=${st ?? "missing"})`);
+          continue;
+        }
+        if (!isLinkPresent(st)) {
+          pending.push(`${tag} (${st})`);
+        }
       }
     }
     if (pending.length === 0) return;
-    await sleep(500);
+    await sleep(250);
   }
 
   throw new Error(`links not present after ${timeoutMs}ms:\n  - ${pending.join("\n  - ")}`);

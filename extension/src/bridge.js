@@ -14,6 +14,7 @@
   var LONG_POLL_WAIT_MS = 25000;
   var LEGACY_POLL_MS = 500;
   var TELEMETRY_POLL_MS = 3000;
+  var TELEMETRY_DEBOUNCE_MS = 800;
   var MAX_LOG_ENTRIES = 250;
   var LABEL_RE = /^\s*\/\*\s*([^*][\s\S]*?)\s*\*\/\s*/;
 
@@ -74,6 +75,8 @@
   var startedAt = Date.now();
   var pendingResolvers = {};
   var latestLabData = null;
+  var telemetryDebounceTimer = null;
+  var commandInFlight = false;
 
   function getBaseUrl() {
     var raw = (serverUrlInput.value || "http://127.0.0.1:54321").trim();
@@ -248,12 +251,32 @@
     }
   };
 
-  function requestTelemetry() {
+  function requestTelemetry(force) {
+    if (!force && commandInFlight) return;
+    if (telemetryDebounceTimer) {
+      clearTimeout(telemetryDebounceTimer);
+      telemetryDebounceTimer = null;
+    }
     try {
       if (typeof window.$se === "function") {
         window.$se("getLabTelemetry");
       }
     } catch (e) {}
+  }
+
+  function scheduleTelemetryRefresh(delayMs) {
+    if (telemetryDebounceTimer) {
+      clearTimeout(telemetryDebounceTimer);
+    }
+    var wait = typeof delayMs === "number" ? delayMs : TELEMETRY_DEBOUNCE_MS;
+    telemetryDebounceTimer = setTimeout(function () {
+      telemetryDebounceTimer = null;
+      if (commandInFlight) {
+        scheduleTelemetryRefresh(wait);
+        return;
+      }
+      requestTelemetry(false);
+    }, wait);
   }
 
   function recordCommandMetrics(ok, elapsedMs) {
@@ -579,17 +602,19 @@
 
         var label = extractLabel(env);
 
+        commandInFlight = true;
         executeInScriptEngine(env, function (resultPayload) {
+          commandInFlight = false;
+          postV1Result(resultPayload, function () {
+            if (running) pollV1();
+          });
           recordCommandMetrics(!!resultPayload.ok, resultPayload.elapsedMs);
           if (resultPayload.ok) {
             appendLog("ok", label, resultPayload.elapsedMs);
           } else {
             appendLog("err", label + " -> " + (resultPayload.error || "failed"), resultPayload.elapsedMs);
           }
-          requestTelemetry();
-          postV1Result(resultPayload, function () {
-            if (running) pollV1();
-          });
+          scheduleTelemetryRefresh(TELEMETRY_DEBOUNCE_MS);
         });
         return;
       }
@@ -619,7 +644,7 @@
         } catch (e) {
           appendLog("err", "Legacy execution failed: " + String(e));
         }
-        requestTelemetry();
+        scheduleTelemetryRefresh(TELEMETRY_DEBOUNCE_MS);
       }
       retryTimer = setTimeout(function () {
         retryTimer = null;
@@ -739,7 +764,7 @@
     } else if (verb === "clear" || verb === "cls") {
       clearLogs();
     } else if (verb === "refresh" || verb === "nodes") {
-      requestTelemetry();
+      requestTelemetry(true);
       appendLog("sys", "Refreshed live Packet Tracer workspace telemetry.");
     } else if (verb === "inspect" && arg) {
       var list = latestLabData && latestLabData.devices ? latestLabData.devices : [];
@@ -817,7 +842,7 @@
 
   if (refreshTopoBtn) {
     refreshTopoBtn.addEventListener("click", function () {
-      requestTelemetry();
+      requestTelemetry(true);
       appendLog("sys", "Refreshed live Packet Tracer lab telemetry.");
     });
   }
@@ -880,7 +905,7 @@
     } else if (k === "c") {
       clearLogs();
     } else if (k === "r") {
-      requestTelemetry();
+      requestTelemetry(true);
     } else if (k === "u") {
       ev.preventDefault();
       if (serverUrlInput) {
@@ -902,8 +927,10 @@
   // Boot initialization
   updateClock();
   setInterval(updateClock, 1000);
-  requestTelemetry();
-  setInterval(requestTelemetry, TELEMETRY_POLL_MS);
+  requestTelemetry(true);
+  setInterval(function () {
+    requestTelemetry(false);
+  }, TELEMETRY_POLL_MS);
   updateHostMeta();
   setFilter("all");
   setProtocol("none");

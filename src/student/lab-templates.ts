@@ -1,7 +1,16 @@
 import type { Bridge } from "../bridge/http-bridge.js";
+import { linkRegistry } from "../canvas/link-registry.js";
 import { resolveModel } from "../catalog/devices.js";
-import { addDeviceJs, bulkCliJs, createLinkJs, setEndpointStaticIpJs } from "../ipc/generator.js";
-import { prepareDevice } from "../cli/engine.js";
+import { waitForCliReadyAll } from "../ipc/cli-wait.js";
+import {
+  addDevicesBatchJs,
+  bulkCliJs,
+  createLinksBatchJs,
+  setEndpointsStaticIpBatchJs,
+  type AddDeviceArgs,
+} from "../ipc/generator.js";
+import { prepareDevice, resetCliCache } from "../cli/engine.js";
+import { invalidateDeviceCache } from "../util/devices.js";
 import { ptError } from "../util/errors.js";
 import type { LabObjective } from "./lab-check.js";
 import { formatTeachGuide, type TeachStep } from "./teach.js";
@@ -850,53 +859,112 @@ export async function applyLabTemplate(
   let pcsConfigured = 0;
   let cliApplied = 0;
 
+  const deviceArgs: AddDeviceArgs[] = [];
+  const iosDevices: string[] = [];
   for (const d of spec.devices) {
     const resolved = resolveModel(d.model);
     if (!resolved) {
       throw ptError("UNKNOWN_MODEL", `Unknown device model "${d.model}" in template "${spec.id}".`);
     }
-    const res = await bridge.sendAndWait(
-      addDeviceJs({ name: d.name, category: resolved.category, model: resolved.ptType, x: d.x, y: d.y }),
-      { timeoutMs: 12_000 },
-    );
-    if (res === null || res.startsWith("ERR:") || res.startsWith("ERROR:")) {
-      throw ptError("TEMPLATE_APPLY_FAILED", `Failed adding device "${d.name}" (${d.ptType}): ${res ?? "timeout"}`);
+    deviceArgs.push({
+      name: d.name,
+      category: resolved.category,
+      model: resolved.ptType,
+      x: d.x,
+      y: d.y,
+    });
+    if (resolved.category === "router" || resolved.category === "switch") {
+      iosDevices.push(d.name);
     }
-    devicesAdded++;
   }
 
-  for (const l of spec.links) {
-    const res = await bridge.sendAndWait(
-      createLinkJs({
-        deviceA: l.from,
-        portA: l.fromPort,
-        deviceB: l.to,
-        portB: l.toPort,
-        cable: l.cable,
-      }),
-      { timeoutMs: 10_000 },
-    );
-    if (res === null || res.startsWith("ERR:") || res.startsWith("ERROR:")) {
-      throw ptError("TEMPLATE_LINK_FAILED", `Failed linking ${l.from}:${l.fromPort} -> ${l.to}:${l.toPort}: ${res ?? "timeout"}`);
+  if (deviceArgs.length > 0) {
+    const res = await bridge.sendAndWait(addDevicesBatchJs(deviceArgs), {
+      timeoutMs: Math.max(15_000, deviceArgs.length * 4_000),
+    });
+    if (!res) {
+      throw ptError("TEMPLATE_APPLY_FAILED", `Batch device placement timed out for template "${spec.id}".`);
     }
-    linksCreated++;
+    let outcomes: Array<{ name: string; ok: boolean; error?: string }>;
+    try {
+      outcomes = JSON.parse(res);
+    } catch {
+      throw ptError("TEMPLATE_APPLY_FAILED", `Unexpected batch addDevice reply: ${res.slice(0, 120)}`);
+    }
+    for (const item of outcomes) {
+      if (!item.ok) {
+        throw ptError("TEMPLATE_APPLY_FAILED", `Failed adding device "${item.name}": ${item.error ?? "unknown error"}`);
+      }
+      resetCliCache(item.name);
+      devicesAdded++;
+    }
+    invalidateDeviceCache(bridge);
   }
 
-  for (const pc of spec.pcs) {
-    const res = await bridge.sendAndWait(
-      setEndpointStaticIpJs({
-        device: pc.name,
-        port: "FastEthernet0",
-        ip: pc.ip,
-        mask: pc.mask,
-        gateway: pc.gateway,
-      }),
-      { timeoutMs: 10_000 },
-    );
-    if (res === null || res.startsWith("ERR:") || res.startsWith("ERROR:")) {
-      throw ptError("TEMPLATE_PC_FAILED", `Failed configuring IP on "${pc.name}": ${res ?? "timeout"}`);
+  if (spec.links.length > 0) {
+    const linkArgs = spec.links.map(l => ({
+      deviceA: l.from,
+      portA: l.fromPort,
+      deviceB: l.to,
+      portB: l.toPort,
+      cable: l.cable,
+    }));
+    const res = await bridge.sendAndWait(createLinksBatchJs(linkArgs), {
+      timeoutMs: Math.max(15_000, linkArgs.length * 3_000),
+    });
+    if (!res) {
+      throw ptError("TEMPLATE_LINK_FAILED", `Batch cabling timed out for template "${spec.id}".`);
     }
-    pcsConfigured++;
+    let outcomes: Array<{ index: number; ok: boolean; error?: string }>;
+    try {
+      outcomes = JSON.parse(res);
+    } catch {
+      throw ptError("TEMPLATE_LINK_FAILED", `Unexpected batch createLink reply: ${res.slice(0, 120)}`);
+    }
+    for (let i = 0; i < spec.links.length; i++) {
+      const l = spec.links[i]!;
+      const out = outcomes[i];
+      if (!out || !out.ok) {
+        throw ptError(
+          "TEMPLATE_LINK_FAILED",
+          `Failed linking ${l.from}:${l.fromPort} -> ${l.to}:${l.toPort}: ${out?.error ?? "unknown error"}`,
+        );
+      }
+      linkRegistry.register(l.from, l.fromPort, l.to, l.toPort);
+      linksCreated++;
+    }
+  }
+
+  if (spec.pcs.length > 0) {
+    const pcArgs = spec.pcs.map(pc => ({
+      device: pc.name,
+      port: "FastEthernet0",
+      ip: pc.ip,
+      mask: pc.mask,
+      gateway: pc.gateway,
+    }));
+    const res = await bridge.sendAndWait(setEndpointsStaticIpBatchJs(pcArgs), {
+      timeoutMs: Math.max(12_000, pcArgs.length * 3_000),
+    });
+    if (!res) {
+      throw ptError("TEMPLATE_PC_FAILED", `Batch PC configuration timed out for template "${spec.id}".`);
+    }
+    let outcomes: Array<{ device: string; ok: boolean; error?: string }>;
+    try {
+      outcomes = JSON.parse(res);
+    } catch {
+      throw ptError("TEMPLATE_PC_FAILED", `Unexpected batch PC reply: ${res.slice(0, 120)}`);
+    }
+    for (const item of outcomes) {
+      if (!item.ok) {
+        throw ptError("TEMPLATE_PC_FAILED", `Failed configuring IP on "${item.device}": ${item.error ?? "unknown error"}`);
+      }
+      pcsConfigured++;
+    }
+  }
+
+  if (iosDevices.length > 0 && spec.cliSteps.length > 0) {
+    await waitForCliReadyAll(bridge, iosDevices);
   }
 
   for (const step of spec.cliSteps) {

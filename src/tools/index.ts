@@ -11,6 +11,7 @@ import { registerExplainCanvasTool } from "./explain-canvas.js";
 import { registerForecastTool } from "./forecast.js";
 import { registerGenerateConfigsTool } from "./generate-configs.js";
 import { registerAddDeviceTool } from "./add-device.js";
+import { registerBatchBuildTool } from "./batch-build.js";
 import { registerAutoLayoutTool } from "./auto-layout.js";
 import { registerAddModuleTool } from "./add-module.js";
 import { registerCreateLinkTool } from "./create-link.js";
@@ -32,6 +33,7 @@ import { registerLoadSnapshotTool } from "./load-snapshot.js";
 import { registerDiffSnapshotsTool } from "./diff-snapshots.js";
 import { registerRunCliTool } from "./run-cli.js";
 import { registerRunCliBulkTool } from "./run-cli-bulk.js";
+import { registerRunCliBatchTool } from "./run-cli-batch.js";
 import { registerPingTool } from "./ping.js";
 import { registerTracerouteTool } from "./traceroute.js";
 import { registerShowRunningTool } from "./show-running.js";
@@ -90,6 +92,7 @@ export const ALL_TOOLS: readonly ToolModule[] = [
   registerGenerateConfigsTool,
   // Per-element authoring (low-level primitives)
   registerAddDeviceTool,
+  registerBatchBuildTool,
   registerAddModuleTool,
   registerCreateLinkTool,
   registerDeleteDeviceTool,
@@ -125,6 +128,7 @@ export const ALL_TOOLS: readonly ToolModule[] = [
   // CLI access
   registerRunCliTool,
   registerRunCliBulkTool,
+  registerRunCliBatchTool,
   // Simulation / ops (Phase 8)
   registerPingTool,
   registerTracerouteTool,

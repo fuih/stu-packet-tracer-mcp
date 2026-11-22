@@ -16,7 +16,7 @@ A student-focused **Model Context Protocol (MCP)** server for **Cisco Packet Tra
 - **Resilient Cisco IOS CLI engine** — automatically clears `[yes/no]` initial configuration dialogs, handles `--More--` pagination cleanly, prevents eaten first characters, and tracks prompt modes (`user`, `privileged`, `config`, `config-if`, etc.).
 - **Reliable Bridge Protocol v1** — correlation IDs per request, long-poll `/v1/next`, strict single-flight serialization, late-result dropping, origin validation, optional shared token (`STU_PT_BRIDGE_TOKEN`), and automatic extension reconnect.
 - **Teach Mode (`STU_PT_TEACH_MODE=1` / `dry_run: true`)** — off by default; turn it on to study step-by-step IOS commands and explanations without modifying the canvas.
-- **100% English & strict schemas** — all 70 tools enforce strict input validation and provide "Did you mean ...?" device suggestions on typos.
+- **100% English & strict schemas** — all 72 tools enforce strict input validation and provide "Did you mean ...?" device suggestions on typos.
 
 ---
 
@@ -80,7 +80,7 @@ For full step-by-step setup instructions, read [docs/QUICKSTART.md](docs/QUICKST
 Once Packet Tracer shows **Connected (`V1`)**, ask your AI assistant in plain English. Below are the five main student workflows and real example prompts:
 
 ### 1. Build & Wire Topologies From Scratch or Diagrams
-- Plan first (`pt_plan_review`), add devices on clean grid rows (`pt_add_device`), install WAN modules like `HWIC-2T` (`pt_add_module`), wire links (`pt_create_link`), and lay out the canvas cleanly (`pt_auto_layout`).
+- Plan first (`pt_plan_review`), then build in one shot with **`pt_batch_build`** + **`pt_run_cli_batch`** (or step-by-step with `pt_add_device`, `pt_add_module`, `pt_create_link`, and `pt_auto_layout`).
 - Or load a complete starter lab from 10 built-in university topologies using `pt_lab_template` (`static-routing`, `default-route`, `rip-v2`, `ospf-single-area`, `vlan-basic`, `inter-vlan-roas`, `dhcp`, `nat-pat`, `acl-standard`, `acl-extended`).
 - **Try asking:** *"Build a 2-router OSPF single-area lab with 2 LAN switches and 2 PCs per LAN using `pt_lab_template`."*
 
@@ -163,7 +163,7 @@ See [docs/REPORTS.md](docs/REPORTS.md) for full theming, callout annotations, an
 - [Quick Start Guide](docs/QUICKSTART.md) — Bun setup, extension loading, and first verification
 - [MCP Client Configurations](docs/CLIENTS.md) — Claude Desktop, Antigravity, Cursor, VS Code, Gemini CLI
 - [Terminal Screenshots & Lab Reports](docs/REPORTS.md) — themes gallery and `pt_export_report` guide
-- [Complete Tool Reference (70 tools)](docs/TOOLS.md) — auto-generated from the live tool registry
+- [Complete Tool Reference (72 tools)](docs/TOOLS.md) — auto-generated from the live tool registry
 - [Building the Packet Tracer Extension](docs/BUILD_EXTENSION.md) — package `extension/src/` into `.pts` inside PT 9
 - [Architecture Overview](docs/ARCHITECTURE.md) — Bridge v1, CLI engine, renderer, and report pipeline
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — common Packet Tracer 9 & bridge fixes

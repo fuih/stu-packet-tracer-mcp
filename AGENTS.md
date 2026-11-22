@@ -64,15 +64,13 @@ The phrase "all LANs with the same addressing capacity" **refers to the subnet p
 ## 4. Recommended Workflow for Multi-Router Topologies
 
 ```text
-1. pt_clear_canvas             (if starting fresh)
-2. pt_plan_review              (mandatory pre-flight for >=3 routers or user diagrams)
-3. pt_add_device  x N          (create ALL devices WITHOUT manual x/y coordinates)
-4. pt_add_module  x M          (HWIC-2T where serial WAN links are needed)
-5. pt_create_link x K          (wire following Section 2 conventions)
-6. pt_auto_layout              (apply topology-aware layout across the canvas)
-7. pt_run_cli_bulk             (push IP / hostname / base IOS configuration)
-8. pt_apply_advanced_routing   (configure EIGRP / OSPF / BGP if needed)
-9. pt_save_pkt                 (persist the lab file)
+1. pt_plan_review              (mandatory pre-flight for >=3 routers or user diagrams)
+2. pt_batch_build              (fastest: clear + place devices + add modules + wire links + set PCs + wait for CLI in 1 call)
+   — or step-by-step: pt_clear_canvas -> pt_add_device -> pt_add_module -> pt_create_link
+3. pt_auto_layout              (apply topology-aware layout across the canvas)
+4. pt_run_cli_batch            (push IP / hostname / routing CLI to multiple devices in 1 call, with optional save: true)
+   — or pt_run_cli_bulk / pt_apply_advanced_routing per device
+5. pt_save_pkt                 (persist the lab file)
 ```
 
 **Do not invent manual `x`/`y` coordinates.** `pt_auto_layout` arranges routers along a clear horizontal band, places switches beneath their parent router, places endpoints beneath their switch, and centers shared switches/clouds between connected routers.

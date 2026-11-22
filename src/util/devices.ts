@@ -95,16 +95,65 @@ export function formatDeviceNotFound(candidate: string, existingDevices: readonl
   return msg;
 }
 
+const DEVICE_CACHE_TTL_MS = 5_000;
+let deviceCacheEpoch = 0;
+const deviceNameCache = new WeakMap<
+  Bridge,
+  { readonly names: string[]; readonly fetchedAt: number; readonly epoch: number }
+>();
+
+/**
+ * Invalidate cached canvas device names after any topology mutation
+ * (add/delete/rename/clear/open). Calling with no arguments invalidates all bridges.
+ */
+export function invalidateDeviceCache(bridge?: Bridge): void {
+  if (bridge) {
+    deviceNameCache.delete(bridge);
+  } else {
+    deviceCacheEpoch += 1;
+  }
+}
+
+/**
+ * Populate the short-lived device-name cache from an already-fetched device list
+ * (for example, right after captureSnapshot).
+ */
+export function primeDeviceCache(bridge: Bridge, names: readonly string[]): void {
+  deviceNameCache.set(bridge, {
+    names: [...names],
+    fetchedAt: Date.now(),
+    epoch: deviceCacheEpoch,
+  });
+}
+
 /**
  * Fetch all device names currently placed on the Packet Tracer canvas.
+ * Uses a short 5-second per-bridge cache unless `force: true` is passed.
  */
-export async function fetchCanvasDeviceNames(bridge: Bridge): Promise<string[]> {
+export async function fetchCanvasDeviceNames(
+  bridge: Bridge,
+  opts: { readonly force?: boolean } = {},
+): Promise<string[]> {
+  if (!opts.force) {
+    const cached = deviceNameCache.get(bridge);
+    if (
+      cached &&
+      cached.epoch === deviceCacheEpoch &&
+      Date.now() - cached.fetchedAt < DEVICE_CACHE_TTL_MS
+    ) {
+      return cached.names;
+    }
+  }
+
   const reply = await bridge.sendAndWait(listDevicesJs(), { timeoutMs: 8_000 });
   if (!reply || reply.startsWith("ERR:") || reply.startsWith("ERROR:")) {
     return [];
   }
   const lines = reply.trim().split("\n");
-  if (lines.length <= 1) return [];
+  if (lines.length <= 1) {
+    primeDeviceCache(bridge, []);
+    return [];
+  }
   const names: string[] = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i]?.trim();
@@ -113,23 +162,33 @@ export async function fetchCanvasDeviceNames(bridge: Bridge): Promise<string[]> 
     const name = parts[0]?.trim();
     if (name) names.push(name);
   }
+  primeDeviceCache(bridge, names);
   return names;
 }
 
 /**
  * Resolve a candidate device name against the live Packet Tracer canvas.
- * Throws a formatted PtError if device cannot be found.
+ * Fast-paths hits from the 5s cache; on any miss, refreshes live from PT before
+ * throwing a formatted PtError with Levenshtein suggestions.
  */
 export async function resolveCanvasDevice(bridge: Bridge, candidate: string): Promise<string> {
-  const devices = await fetchCanvasDeviceNames(bridge);
-  if (devices.length === 0) {
+  const cached = await fetchCanvasDeviceNames(bridge);
+  if (cached.length > 0) {
+    const hit = resolveDeviceName(candidate, cached);
+    if (hit.found && hit.name) {
+      return hit.name;
+    }
+  }
+
+  const fresh = await fetchCanvasDeviceNames(bridge, { force: true });
+  if (fresh.length === 0) {
     // If we couldn't list devices or canvas is empty, return candidate as-is
     return candidate;
   }
-  const res = resolveDeviceName(candidate, devices);
+  const res = resolveDeviceName(candidate, fresh);
   if (res.found && res.name) {
     return res.name;
   }
-  const msg = formatDeviceNotFound(candidate, devices);
+  const msg = formatDeviceNotFound(candidate, fresh);
   throw ptError("DEVICE_NOT_FOUND", msg, "Use pt_query_topology to inspect canvas devices.");
 }

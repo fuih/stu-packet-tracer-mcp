@@ -1,6 +1,7 @@
 import type { Bridge } from "../bridge/http-bridge.js";
 import { jsStr } from "../ipc/escape.js";
 import { withLabel, truncateForLabel } from "../ipc/label.js";
+import { invalidateDeviceCache } from "../util/devices.js";
 import { cleanCliOutput, cleanConsoleScrollback } from "./clean.js";
 import { detectPrompt, type CliMode } from "./prompt.js";
 
@@ -36,6 +37,13 @@ export function resetCliCache(device?: string): void {
     preparedDevices.clear();
     noTermLengthDevices.clear();
   }
+  invalidateDeviceCache();
+}
+
+function extractCommandReplySlice(reply: string | null): string {
+  if (!reply) return "";
+  const sepIdx = reply.indexOf("|");
+  return sepIdx >= 0 ? reply.slice(sepIdx + 1) : reply;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -171,6 +179,81 @@ export async function readConsoleScrollback(
   });
 }
 
+async function prepareDeviceWithTail(bridge: Bridge, device: string): Promise<string | null> {
+  if (preparedDevices.has(device)) return null;
+
+  let { tail } = await readTail(bridge, device);
+
+  // Dismiss lingering --More--
+  if (endsWithMore(tail)) {
+    await bridge.sendAndWait(sendCliPagerKeyJs(device, 113, "q"), { timeoutMs: 5_000 });
+    await sleep(60);
+    ({ tail } = await readTail(bridge, device));
+  }
+
+  // Dismiss initial config dialog if currently active at the tail
+  if (/initial configuration dialog\?\s*\[yes\/no\]:?\s*$/i.test(tail.trimEnd())) {
+    await bridge.sendAndWait(enterCommandOffsetJs(device, "no"), { timeoutMs: 8_000 });
+    await sleep(200);
+    const wakeReply = await bridge.sendAndWait(enterCommandOffsetJs(device, ""), { timeoutMs: 5_000 });
+    const wakeSlice = extractCommandReplySlice(wakeReply);
+    if (detectPrompt(wakeSlice)) {
+      tail = wakeSlice;
+    } else {
+      await sleep(150);
+      ({ tail } = await readTail(bridge, device));
+    }
+  }
+
+  // Nudge empty CLI to get a prompt
+  let pInfo = detectPrompt(tail);
+  if (!pInfo) {
+    const nudgeReply = await bridge.sendAndWait(enterCommandOffsetJs(device, ""), { timeoutMs: 5_000 });
+    const nudgeSlice = extractCommandReplySlice(nudgeReply);
+    pInfo = detectPrompt(nudgeSlice);
+    if (pInfo) {
+      tail = nudgeSlice;
+    } else {
+      await sleep(120);
+      ({ tail } = await readTail(bridge, device));
+      pInfo = detectPrompt(tail);
+    }
+  }
+
+  // If in user EXEC mode, elevate to privileged EXEC
+  if (pInfo?.mode === "user") {
+    const enReply = await bridge.sendAndWait(enterCommandOffsetJs(device, "enable"), { timeoutMs: 8_000 });
+    const enSlice = extractCommandReplySlice(enReply);
+    const enPrompt = detectPrompt(enSlice);
+    if (enPrompt) {
+      tail = enSlice;
+      pInfo = enPrompt;
+    } else {
+      await sleep(100);
+      ({ tail } = await readTail(bridge, device));
+      pInfo = detectPrompt(tail);
+    }
+  }
+
+  // Try `terminal length 0` if in privileged mode
+  if (pInfo?.mode === "privileged" && !noTermLengthDevices.has(device)) {
+    const reply = await bridge.sendAndWait(enterCommandOffsetJs(device, "terminal length 0"), { timeoutMs: 8_000 });
+    const slice = extractCommandReplySlice(reply);
+    if (reply && (reply.includes("% Invalid") || reply.includes("^"))) {
+      noTermLengthDevices.add(device);
+    }
+    if (detectPrompt(slice)) {
+      tail = slice;
+    } else {
+      await sleep(50);
+      ({ tail } = await readTail(bridge, device));
+    }
+  }
+
+  preparedDevices.add(device);
+  return tail;
+}
+
 /**
  * Prepare a device once per session:
  *  - Dismiss initial configuration dialog (`[yes/no]` -> `no`)
@@ -179,53 +262,7 @@ export async function readConsoleScrollback(
  *  - Attempt `terminal length 0` (remembering if unsupported)
  */
 export async function prepareDevice(bridge: Bridge, device: string): Promise<void> {
-  if (preparedDevices.has(device)) return;
-
-  let { tail } = await readTail(bridge, device);
-
-  // Dismiss lingering --More--
-  if (endsWithMore(tail)) {
-    await bridge.sendAndWait(sendCliPagerKeyJs(device, 113, "q"), { timeoutMs: 5_000 });
-    await sleep(150);
-    ({ tail } = await readTail(bridge, device));
-  }
-
-  // Dismiss initial config dialog if currently active at the tail
-  if (/initial configuration dialog\?\s*\[yes\/no\]:?\s*$/i.test(tail.trimEnd())) {
-    await bridge.sendAndWait(enterCommandOffsetJs(device, "no"), { timeoutMs: 8_000 });
-    await sleep(400);
-    await bridge.sendAndWait(enterCommandOffsetJs(device, ""), { timeoutMs: 5_000 });
-    await sleep(300);
-    ({ tail } = await readTail(bridge, device));
-  }
-
-  // Nudge empty CLI to get a prompt
-  let pInfo = detectPrompt(tail);
-  if (!pInfo) {
-    await bridge.sendAndWait(enterCommandOffsetJs(device, ""), { timeoutMs: 5_000 });
-    await sleep(250);
-    ({ tail } = await readTail(bridge, device));
-    pInfo = detectPrompt(tail);
-  }
-
-  // If in user EXEC mode, elevate to privileged EXEC
-  if (pInfo?.mode === "user") {
-    await bridge.sendAndWait(enterCommandOffsetJs(device, "enable"), { timeoutMs: 8_000 });
-    await sleep(200);
-    ({ tail } = await readTail(bridge, device));
-    pInfo = detectPrompt(tail);
-  }
-
-  // Try `terminal length 0` if in privileged mode
-  if (pInfo?.mode === "privileged" && !noTermLengthDevices.has(device)) {
-    const reply = await bridge.sendAndWait(enterCommandOffsetJs(device, "terminal length 0"), { timeoutMs: 8_000 });
-    if (reply && (reply.includes("% Invalid") || reply.includes("^"))) {
-      noTermLengthDevices.add(device);
-    }
-    await sleep(100);
-  }
-
-  preparedDevices.add(device);
+  await prepareDeviceWithTail(bridge, device);
 }
 
 /**
@@ -241,18 +278,19 @@ export async function runCli(
   command: string,
   opts: RunCliOptions = {},
 ): Promise<CliRunResult> {
+  let preparedTail: string | null = null;
   if (!opts.skipPrepare) {
-    await prepareDevice(bridge, device);
+    preparedTail = await prepareDeviceWithTail(bridge, device);
   }
 
-  // Pre-flight check on tail
-  let { tail } = await readTail(bridge, device);
+  // Reuse tail if prepareDevice just ran; otherwise perform a single pre-flight tail read
+  let tail = preparedTail !== null ? preparedTail : (await readTail(bridge, device)).tail;
 
   // If previous output left the pager at --More--, dismiss with 'q' so the
   // first character of our new command isn't eaten!
   if (endsWithMore(tail)) {
     await bridge.sendAndWait(sendCliPagerKeyJs(device, 113, "q"), { timeoutMs: 5_000 });
-    await sleep(150);
+    await sleep(60);
     ({ tail } = await readTail(bridge, device));
   }
 
@@ -267,9 +305,11 @@ export async function runCli(
 
   // Anchor tail before sending command so ring-buffered scrollback trims cannot zero out offset
   const preAnchor = tail.length > 120 ? tail.slice(-120) : tail;
-  const defaultSettle = isLongRunningCommand(command) ? 25_000 : 2_000;
+  const longRunning = isLongRunningCommand(command);
+  const defaultSettle = longRunning ? 25_000 : 2_000;
   const settleMs = opts.settleMs ?? defaultSettle;
-  const pollIntervalMs = opts.pollIntervalMs ?? 120;
+  const pollIntervalMs = opts.pollIntervalMs ?? (longRunning ? 120 : 40);
+  const requiredStable = longRunning ? 2 : 1;
   const rpcTimeout = opts.timeoutMs ?? Math.max(15_000, settleMs + 5_000);
 
   // Dispatch command and capture starting byte offset
@@ -313,12 +353,8 @@ export async function runCli(
 
     const pInfo = detectPrompt(rawSlice);
     if (pInfo && pInfo.mode !== "dialog") {
-      if (rawSlice.length === lastLen) {
-        stableCount++;
-        if (stableCount >= 2) break;
-      } else {
-        lastLen = rawSlice.length;
-        stableCount = 0;
+      if (rawSlice.length === lastLen && stableCount >= requiredStable) {
+        break;
       }
     }
 
@@ -332,9 +368,10 @@ export async function runCli(
         deadline = Math.min(hardDeadline, Math.max(deadline, Date.now() + 2_000));
       } else {
         rawSlice = nextSlice;
-        if (detectPrompt(rawSlice)) {
+        const nextPrompt = detectPrompt(rawSlice);
+        if (nextPrompt && nextPrompt.mode !== "dialog") {
           stableCount++;
-          if (stableCount >= 2) break;
+          if (stableCount >= requiredStable) break;
         }
       }
     }

@@ -1147,4 +1147,256 @@ export function readProjectMetadataJs(): string {
   );
 }
 
+/**
+ * Place multiple devices in a single Script Engine round-trip.
+ * Returns a JSON array of `{ name, ok, error? }`.
+ */
+export function addDevicesBatchJs(items: readonly AddDeviceArgs[]): string {
+  const specs = items.map(a => ({
+    name: a.name,
+    typeId: DEVICE_TYPE_ID[a.category],
+    model: a.model,
+    x: a.x,
+    y: a.y,
+  }));
+  return withLabel(
+    `Creating ${items.length} device(s) in batch`,
+    `(function(){` +
+      `var lw=${LW};` +
+      `var net=${NET};` +
+      `var specs=${JSON.stringify(specs)};` +
+      `var res=[];` +
+      `for(var i=0;i<specs.length;i++){` +
+        `var s=specs[i];` +
+        `try{` +
+          `var assigned=lw.addDevice(s.typeId,s.model,s.x,s.y);` +
+          `if(!assigned){res.push({name:s.name,ok:false,error:"ERR:addDevice_failed"});continue;}` +
+          `var d=net.getDevice(assigned);` +
+          `if(!d){res.push({name:s.name,ok:false,error:"ERR:device_lookup_failed"});continue;}` +
+          `d.setName(s.name);` +
+          `try{d.setPower(true);}catch(ep){}` +
+          `try{d.skipBoot();}catch(eb){}` +
+          `res.push({name:s.name,ok:true});` +
+        `}catch(err){` +
+          `res.push({name:s.name,ok:false,error:"ERROR:"+err});` +
+        `}` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Cable multiple links in a single Script Engine round-trip.
+ * Returns a JSON array of `{ index, ok, error? }`.
+ */
+export function createLinksBatchJs(items: readonly CreateLinkArgs[]): string {
+  const specs = items.map(a => ({
+    deviceA: a.deviceA,
+    portA: a.portA,
+    deviceB: a.deviceB,
+    portB: a.portB,
+    cableId: CABLE_TYPE_ID[a.cable],
+  }));
+  return withLabel(
+    `Cabling ${items.length} link(s) in batch`,
+    `(function(){` +
+      `var lw=${LW};` +
+      `var net=${NET};` +
+      `var specs=${JSON.stringify(specs)};` +
+      `var res=[];` +
+      `for(var i=0;i<specs.length;i++){` +
+        `var s=specs[i];` +
+        `try{` +
+          `var ok=lw.createLink(s.deviceA,s.portA,s.deviceB,s.portB,s.cableId);` +
+          `var a=net.getDevice(s.deviceA);` +
+          `if(!a){res.push({index:i,ok:false,error:"ERR:first_device_not_found"});continue;}` +
+          `var p=a.getPort(s.portA);` +
+          `if(!p){res.push({index:i,ok:false,error:"ERR:first_port_not_found"});continue;}` +
+          `var lk=null;try{lk=p.getLink();}catch(elErr){}` +
+          `if(!lk){res.push({index:i,ok:false,error:"ERR:link_not_created"});continue;}` +
+          `if(ok===false){res.push({index:i,ok:false,error:"ERR:createLink_false"});continue;}` +
+          `res.push({index:i,ok:true});` +
+        `}catch(err){` +
+          `res.push({index:i,ok:false,error:"ERROR:"+err});` +
+        `}` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Configure static IPv4 settings on multiple endpoints in a single IPC call.
+ * Returns a JSON array of `{ device, ok, error? }`.
+ */
+export function setEndpointsStaticIpBatchJs(items: readonly EndpointStaticIp[]): string {
+  const specs = items.map(a => ({
+    device: a.device,
+    port: a.port,
+    ip: a.ip,
+    mask: a.mask,
+    gateway: a.gateway ?? "",
+  }));
+  return withLabel(
+    `Configuring static IP on ${items.length} host(s) in batch`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var specs=${JSON.stringify(specs)};` +
+      `var res=[];` +
+      `for(var i=0;i<specs.length;i++){` +
+        `var s=specs[i];` +
+        `try{` +
+          `var d=net.getDevice(s.device);` +
+          `if(!d){res.push({device:s.device,ok:false,error:"ERR:not_found"});continue;}` +
+          `d.setDhcpFlag(false);` +
+          `var port=d.getPort(s.port);` +
+          `if(!port){res.push({device:s.device,ok:false,error:"ERR:port_not_found"});continue;}` +
+          `port.setIpSubnetMask(s.ip,s.mask);` +
+          `if(s.gateway){port.setDefaultGateway(s.gateway);}` +
+          `res.push({device:s.device,ok:true});` +
+        `}catch(err){` +
+          `res.push({device:s.device,ok:false,error:"ERROR:"+err});` +
+        `}` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Check physical link presence on multiple links in one Script Engine call.
+ * Returns a JSON array of status strings matching `linkUpStatusJs` format.
+ */
+export function linksUpStatusBatchJs(
+  links: ReadonlyArray<{ readonly deviceA: string; readonly portA: string; readonly deviceB: string; readonly portB: string }>,
+): string {
+  return withLabel(
+    `Verifying ${links.length} link(s) in batch`,
+    `(function(){` +
+      `var net=${NET};` +
+      `function st(dn,pn){` +
+        `var dev=net.getDevice(dn);` +
+        `if(!dev)return null;` +
+        `var port=dev.getPort(pn);` +
+        `if(!port)return null;` +
+        `var lk=0;try{lk=port.getLink()?1:0;}catch(e1){lk=0;}` +
+        `var pu=0;try{pu=port.isPortUp()?1:0;}catch(e2){pu=-1;}` +
+        `var prc=0;try{prc=port.isProtocolUp()?1:0;}catch(e3){prc=-1;}` +
+        `return "link="+lk+"|port="+pu+"|proto="+prc;` +
+      `}` +
+      `var specs=${JSON.stringify(links)};` +
+      `var res=[];` +
+      `for(var i=0;i<specs.length;i++){` +
+        `var s=specs[i];` +
+        `var sa=st(s.deviceA,s.portA);` +
+        `if(sa===null){res.push("ERR:a_not_found");continue;}` +
+        `var sb=st(s.deviceB,s.portB);` +
+        `if(sb===null){res.push("ERR:b_not_found");continue;}` +
+        `res.push("a:"+sa+";b:"+sb);` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Persist running-config to startup-config (`write memory`) across multiple
+ * devices in one Script Engine call. Returns JSON array of `{ device, ok, error? }`.
+ */
+export function saveRunningConfigsBatchJs(deviceNames: readonly string[]): string {
+  return withLabel(
+    `Saving running-config on ${deviceNames.length} device(s)`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var names=${JSON.stringify(deviceNames)};` +
+      `var res=[];` +
+      `for(var i=0;i<names.length;i++){` +
+        `var dn=names[i];` +
+        `try{` +
+          `var d=net.getDevice(dn);` +
+          `if(!d){res.push({device:dn,ok:false,error:"ERR:not_found"});continue;}` +
+          `var cl=d.getCommandLine();` +
+          `if(!cl){res.push({device:dn,ok:false,error:"ERR:no_cli"});continue;}` +
+          `var mode="";try{mode=String(cl.getMode()||"");}catch(em){}` +
+          `if(/config/i.test(mode))cl.enterCommand("end");` +
+          `cl.enterCommand("write memory");` +
+          `res.push({device:dn,ok:true});` +
+        `}catch(err){` +
+          `res.push({device:dn,ok:false,error:"ERROR:"+err});` +
+        `}` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Poll live CLI `{ prompt, tail }` state for multiple devices in a single IPC call.
+ */
+export function getCliStatesBatchJs(deviceNames: readonly string[]): string {
+  return withLabel(
+    `Polling CLI boot state of ${deviceNames.length} device(s)`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var names=${JSON.stringify(deviceNames)};` +
+      `var res=[];` +
+      `for(var i=0;i<names.length;i++){` +
+        `var dn=names[i];` +
+        `var d=net.getDevice(dn);` +
+        `if(!d){res.push({device:dn,ok:false,prompt:"",tail:""});continue;}` +
+        `var cl=d.getCommandLine();` +
+        `if(!cl){res.push({device:dn,ok:false,prompt:"",tail:""});continue;}` +
+        `var pr="";try{pr=String(cl.getPrompt()||"");}catch(ep){}` +
+        `var out="";try{out=String(cl.getOutput()||"");}catch(eo){}` +
+        `var tail=out.substring(Math.max(0,out.length-300));` +
+        `res.push({device:dn,ok:true,prompt:pr,tail:tail});` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Dismiss initial configuration dialogs (`[yes/no]`) across multiple devices in 1 call.
+ */
+export function dismissBootDialogsBatchJs(deviceNames: readonly string[]): string {
+  return withLabel(
+    `Dismissing boot dialog on ${deviceNames.length} device(s)`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var names=${JSON.stringify(deviceNames)};` +
+      `for(var i=0;i<names.length;i++){` +
+        `var d=net.getDevice(names[i]);` +
+        `if(!d)continue;` +
+        `var cl=d.getCommandLine();` +
+        `if(!cl)continue;` +
+        `${SAFE_BOOT_DISMISS_JS}` +
+      `}` +
+      `return "OK";` +
+    `})()`,
+  );
+}
+
+/**
+ * Send an empty Enter nudge to multiple idle CLIs in 1 call.
+ */
+export function nudgeCliBatchJs(deviceNames: readonly string[]): string {
+  return withLabel(
+    `Nudging idle CLI on ${deviceNames.length} device(s)`,
+    `(function(){` +
+      `var net=${NET};` +
+      `var names=${JSON.stringify(deviceNames)};` +
+      `for(var i=0;i<names.length;i++){` +
+        `var d=net.getDevice(names[i]);` +
+        `if(!d)continue;` +
+        `var cl=d.getCommandLine();` +
+        `if(!cl)continue;` +
+        `cl.enterCommand("");` +
+      `}` +
+      `return "OK";` +
+    `})()`,
+  );
+}
+
 export const ipcRoots = { LW, NET } as const;

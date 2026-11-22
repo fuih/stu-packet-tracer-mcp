@@ -32,7 +32,7 @@ export interface RunOptions {
 }
 
 const DEFAULT_TIMEOUT = 30_000;
-const DEFAULT_POLL = 1_500;
+const DEFAULT_POLL = 300;
 
 function readSinceMarkerJs(device: string, marker: string): string {
   return withLabel(
@@ -104,6 +104,177 @@ export async function runPing(
   return { raw, result: parsePing(raw, target) };
 }
 
+export interface ParallelPingJob {
+  readonly device: string;
+  readonly target: string;
+}
+
+export interface ParallelPingOutcome {
+  readonly device: string;
+  readonly target: string;
+  readonly raw: string;
+  readonly result: PingResult;
+}
+
+function startPingsBatchJs(jobs: readonly ParallelPingJob[]): string {
+  const payload = JSON.stringify(jobs.map(j => ({ device: j.device, target: j.target })));
+  return withLabel(
+    `Launching ${jobs.length} parallel ping(s)`,
+    `(function(){` +
+      `var jobs=${payload};` +
+      `var res=[];` +
+      `for(var i=0;i<jobs.length;i++){` +
+        `var j=jobs[i];` +
+        `var d=ipc.network().getDevice(j.device);` +
+        `if(!d){res.push({ok:false,offset:0,anchor:"",slice:"ERR:not_found"});continue;}` +
+        `var cl=d.getCommandLine();` +
+        `if(!cl){res.push({ok:false,offset:0,anchor:"",slice:"ERR:no_cli"});continue;}` +
+        `var out0=String(cl.getOutput()||"");` +
+        `var before=out0.length;` +
+        `var anchor=before>80?out0.substring(before-80):out0;` +
+        `cl.enterCommand("ping "+j.target);` +
+        `var after=String(cl.getOutput()||"");` +
+        `var slice="";` +
+        `if(anchor&&after.length>=before&&after.substring(before-anchor.length,before)===anchor){` +
+          `slice=after.substring(before);` +
+        `}else if(anchor){` +
+          `var idx=after.lastIndexOf(anchor);` +
+          `slice=idx>=0?after.substring(idx+anchor.length):after.substring(before);` +
+        `}else{slice=after.substring(before);}` +
+        `res.push({ok:true,offset:before,anchor:anchor,slice:slice});` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+function readPingSlicesBatchJs(
+  pending: ReadonlyArray<{ readonly index: number; readonly device: string; readonly offset: number; readonly anchor: string }>,
+): string {
+  const payload = JSON.stringify(pending);
+  return withLabel(
+    `Polling ${pending.length} active ping(s)`,
+    `(function(){` +
+      `var items=${payload};` +
+      `var res=[];` +
+      `for(var i=0;i<items.length;i++){` +
+        `var it=items[i];` +
+        `var d=ipc.network().getDevice(it.device);` +
+        `if(!d){res.push({index:it.index,slice:""});continue;}` +
+        `var cl=d.getCommandLine();` +
+        `if(!cl){res.push({index:it.index,slice:""});continue;}` +
+        `var out=String(cl.getOutput()||"");` +
+        `var slice="";` +
+        `if(it.anchor){` +
+          `if(it.offset>=it.anchor.length&&out.substring(it.offset-it.anchor.length,it.offset)===it.anchor){` +
+            `slice=out.substring(it.offset);` +
+          `}else{` +
+            `var idx=out.lastIndexOf(it.anchor);` +
+            `slice=idx>=0?out.substring(idx+it.anchor.length):out.substring(it.offset);` +
+          `}` +
+        `}else{slice=out.substring(it.offset);}` +
+        `res.push({index:it.index,slice:slice});` +
+      `}` +
+      `return JSON.stringify(res);` +
+    `})()`,
+  );
+}
+
+/**
+ * Execute multiple pings concurrently across distinct source devices in a single
+ * batched IPC start + batched poll loop.
+ */
+export async function runPingsParallel(
+  bridge: Bridge,
+  jobs: readonly ParallelPingJob[],
+  opts: RunOptions = {},
+): Promise<ParallelPingOutcome[]> {
+  if (jobs.length === 0) return [];
+  if (jobs.length === 1) {
+    const j = jobs[0]!;
+    const { raw, result } = await runPing(bridge, j.device, j.target, opts);
+    return [{ device: j.device, target: j.target, raw, result }];
+  }
+
+  const timeoutMs = opts.timeoutMs ?? 25_000;
+  const pollIntervalMs = opts.pollIntervalMs ?? DEFAULT_POLL;
+
+  const startRaw = await bridge.sendAndWait(startPingsBatchJs(jobs), { timeoutMs: 12_000 });
+  if (startRaw === null) {
+    throw new Error(`Bridge timeout launching ${jobs.length} parallel ping(s).`);
+  }
+
+  interface StartedItem {
+    ok: boolean;
+    offset: number;
+    anchor: string;
+    slice: string;
+  }
+  let started: StartedItem[];
+  try {
+    started = JSON.parse(startRaw) as StartedItem[];
+  } catch {
+    // Fallback sequentially if reply was unexpected (e.g. custom mock bridge)
+    const fallback: ParallelPingOutcome[] = [];
+    for (const j of jobs) {
+      const { raw, result } = await runPing(bridge, j.device, j.target, opts);
+      fallback.push({ device: j.device, target: j.target, raw, result });
+    }
+    return fallback;
+  }
+
+  const states = jobs.map((job, idx) => {
+    const s = started[idx] ?? { ok: false, offset: 0, anchor: "", slice: "" };
+    const done = !s.ok || PING_DONE.some(re => re.test(s.slice));
+    return {
+      index: idx,
+      device: job.device,
+      target: job.target,
+      offset: s.offset,
+      anchor: s.anchor,
+      raw: s.slice,
+      done,
+    };
+  });
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const active = states.filter(s => !s.done);
+    if (active.length === 0) break;
+
+    await sleep(pollIntervalMs);
+    const pollRaw = await bridge.sendAndWait(
+      readPingSlicesBatchJs(
+        active.map(a => ({ index: a.index, device: a.device, offset: a.offset, anchor: a.anchor })),
+      ),
+      { timeoutMs: 10_000 },
+    );
+    if (!pollRaw || !pollRaw.startsWith("[")) continue;
+    try {
+      const updates = JSON.parse(pollRaw) as Array<{ index: number; slice: string }>;
+      for (const u of updates) {
+        const st = states[u.index];
+        if (!st || st.done) continue;
+        if (u.slice) {
+          st.raw = u.slice;
+          if (PING_DONE.some(re => re.test(st.raw))) {
+            st.done = true;
+          }
+        }
+      }
+    } catch {
+      // ignore malformed poll reply and retry before deadline
+    }
+  }
+
+  return states.map(s => ({
+    device: s.device,
+    target: s.target,
+    raw: s.raw,
+    result: parsePing(s.raw, s.target),
+  }));
+}
+
 export async function runTraceroute(
   bridge: Bridge,
   device: string,
@@ -120,7 +291,7 @@ export async function runTraceroute(
   // short delay (works on PCs). The poller waits for either terminator.
   const sent1 = await bridge.sendAndWait(enterCommandJs(device, cmd), { timeoutMs: 10_000 });
   if (sent1 === null) throw new Error(`Bridge timeout sending '${cmd}' to ${device}.`);
-  await sleep(800);
+  await sleep(300);
   await bridge.sendAndWait(enterCommandJs(device, tracert), { timeoutMs: 10_000 });
 
   const deadline = Date.now() + (opts.timeoutMs ?? 60_000);

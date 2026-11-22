@@ -8,11 +8,11 @@ Status recorded on **2026-11-18** prior to public GitHub release (`fuih`).
 
 - [x] **TypeScript strict typecheck** (`bun run typecheck`) — 0 errors
 - [x] **100% English enforcement** (`bun run check:english`) — 0 violations across `src/`, `tests/`, `extension/src/`, `docs/`, `scripts/`, `AGENTS.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
-- [x] **Auto-generated tool documentation** (`bun run check:tools`) — `docs/TOOLS.md` synced with all **70 registered tools**
+- [x] **Auto-generated tool documentation** (`bun run check:tools`) — `docs/TOOLS.md` synced with all **72 registered tools**
 - [x] **Full offline unit & golden test suite** (`bun test`) — **414 pass, 0 fail, 1372 expect() calls across 36 files**
   - Bridge Protocol v1 (correlation IDs, long-poll latency, F1 late-result drop, 10x serialization, origin 403, token auth, legacy hex compatibility)
   - Resilient Cisco IOS CLI engine (`[yes/no]` dismissal, multi-page `--More--`, eaten-char prevention, mode tracking)
-  - Tool layer (`.strict()` schema enforcement on all 70 tools, fuzzy Levenshtein `<= 2` device resolver, path helpers)
+  - Tool layer (`.strict()` schema enforcement on all 72 tools, fuzzy Levenshtein `<= 2` device resolver, path helpers)
   - Terminal renderer (5 golden SVG themes, XML escaping, line wrapping, callout annotations, `@resvg/resvg-wasm` + DejaVu Sans Mono 2x PNG)
   - Student tools (addressing table, ping matrix + diagnostics, lab checker, CLI output explainer, subnet/VLSM calculator, 10 lab templates, Teach Mode)
   - Report export (Markdown, self-contained print-ready HTML, real OOXML/ZIP `.docx` with embedded PNGs)

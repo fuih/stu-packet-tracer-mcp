@@ -1,7 +1,7 @@
 import type { Bridge } from "../bridge/http-bridge.js";
 import { ipToInt } from "../canvas/subnetting.js";
 import { escapeXml, MONO_FONT_FAMILY } from "../render/terminal-svg.js";
-import { runPing } from "../sim/runner.js";
+import { runPingsParallel } from "../sim/runner.js";
 import { ptError } from "../util/errors.js";
 import { collectAddressingTable, type AddressingRow } from "./addressing.js";
 
@@ -243,6 +243,68 @@ export async function runPingMatrix(
 
   const doWarmup = opts.warmup ?? true;
   const timeoutMs = opts.timeoutMs ?? 20_000;
+  const n = candidateRows.length;
+
+  // Store outcomes keyed by "src=>dst" so final cell order matches candidateRows x candidateRows
+  const outcomeMap = new Map<string, { raw: string; sent: number; received: number; successRate: number }>();
+
+  // Partition all N*(N-1) directed pairs into N-1 conflict-free parallel waves
+  // where each source host runs at most one ping per wave.
+  for (let step = 1; step < n; step++) {
+    const wavePairs: Array<{ src: AddressingRow; dst: AddressingRow }> = [];
+    for (let i = 0; i < n; i++) {
+      const src = candidateRows[i]!;
+      const dst = candidateRows[(i + step) % n]!;
+      wavePairs.push({ src, dst });
+    }
+
+    const firstOutcomes = await runPingsParallel(
+      bridge,
+      wavePairs.map(p => ({ device: p.src.device, target: p.dst.ip })),
+      { timeoutMs },
+    );
+
+    const retryIndices: number[] = [];
+    for (let idx = 0; idx < wavePairs.length; idx++) {
+      const pair = wavePairs[idx]!;
+      const out = firstOutcomes[idx]!;
+      const sent = out.result.sent || 4;
+      const received = out.result.received;
+      outcomeMap.set(`${pair.src.device}=>${pair.dst.device}`, {
+        raw: out.raw,
+        sent,
+        received,
+        successRate: out.result.successRate,
+      });
+      // Smart ARP warmup: only re-ping pairs that did not achieve 100% on the first pass.
+      if (doWarmup && received < sent) {
+        retryIndices.push(idx);
+      }
+    }
+
+    if (retryIndices.length > 0) {
+      const retryOutcomes = await runPingsParallel(
+        bridge,
+        retryIndices.map(idx => {
+          const pair = wavePairs[idx]!;
+          return { device: pair.src.device, target: pair.dst.ip };
+        }),
+        { timeoutMs },
+      );
+      for (let rIdx = 0; rIdx < retryIndices.length; rIdx++) {
+        const pair = wavePairs[retryIndices[rIdx]!]!;
+        const out = retryOutcomes[rIdx]!;
+        const sent = out.result.sent || 4;
+        outcomeMap.set(`${pair.src.device}=>${pair.dst.device}`, {
+          raw: out.raw,
+          sent,
+          received: out.result.received,
+          successRate: out.result.successRate,
+        });
+      }
+    }
+  }
+
   const cells: PingMatrixCell[] = [];
   let passed = 0;
   let failed = 0;
@@ -262,13 +324,14 @@ export async function runPingMatrix(
         continue;
       }
 
-      if (doWarmup) {
-        await runPing(bridge, src.device, dst.ip, { timeoutMs: Math.min(timeoutMs, 12_000) }).catch(() => {});
-      }
-
-      const { raw, result } = await runPing(bridge, src.device, dst.ip, { timeoutMs });
-      const sent = result.sent || 4;
-      const received = result.received;
+      const measured = outcomeMap.get(`${src.device}=>${dst.device}`) ?? {
+        raw: "",
+        sent: 4,
+        received: 0,
+        successRate: 0,
+      };
+      const sent = measured.sent || 4;
+      const received = measured.received;
       const status: PingMatrixCell["status"] =
         received >= sent && sent > 0
           ? "pass"
@@ -279,7 +342,7 @@ export async function runPingMatrix(
       if (status === "pass") passed++;
       else failed++;
 
-      const diagnosis = status === "pass" ? undefined : diagnosePingFailure(src, dst, raw);
+      const diagnosis = status === "pass" ? undefined : diagnosePingFailure(src, dst, measured.raw);
       cells.push({
         from: src.device,
         to: dst.device,
@@ -287,7 +350,7 @@ export async function runPingMatrix(
         status,
         sent,
         received,
-        successRate: result.successRate,
+        successRate: measured.successRate,
         diagnosis,
       });
     }

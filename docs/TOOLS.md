@@ -2,7 +2,7 @@
 
 > **Auto-generated file.** Do not edit manually — run `bun run docs:tools` to regenerate.
 
-Total registered tools: **70**. All input schemas are strict (`additionalProperties: false`).
+Total registered tools: **72**. All input schemas are strict (`additionalProperties: false`).
 
 ## Categories
 
@@ -10,12 +10,13 @@ Total registered tools: **70**. All input schemas are strict (`additionalPropert
 - [Student Tools](#student-tools) (9)
 - [Captures & Visuals](#captures-visuals) (4)
 - [Reports](#reports) (1)
-- [CLI & Diagnostics](#cli-diagnostics) (4)
+- [CLI & Diagnostics](#cli-diagnostics) (5)
 - [Simulation & Testing](#simulation-testing) (5)
 - [Topology & Canvas](#topology-canvas) (13)
 - [Inspection & Analysis](#inspection-analysis) (11)
 - [Configuration & Recipes](#configuration-recipes) (10)
 - [Files & Snapshots](#files-snapshots) (8)
+- [Canvas Authoring](#canvas-authoring) (1)
 
 ## Catalog & Status
 
@@ -243,6 +244,17 @@ Execute a Cisco IOS CLI command on a router or switch and return its console out
 | `device` | string | Yes | Router or switch name (e.g. 'R1', 'Switch_A'). |
 | `command` | string | Yes | Cisco IOS CLI command to execute (e.g. 'show ip interface brief', 'show ip route'). |
 | `timeout_ms` | integer | No | Command execution timeout in milliseconds. |
+
+### `pt_run_cli_batch`
+
+Push multi-line Cisco IOS configuration blocks to multiple routers and switches in a single MCP tool call (optionally saving startup-config with `write memory` across all devices in one batched call). Automatically prepares each CLI and strips unsupported trunk encapsulation lines on 2960/3650 switches.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `targets` | object[] | Yes | List of devices and their Cisco IOS command blocks to apply in a single tool call. |
+| `save` | boolean | No | If true, save running-config to startup-config (`write memory`) on all succeeded devices in one batched call. (default: `false`) |
+| `tail_chars` | integer | No | Maximum trailing console output characters to return per device. (default: `1500`) |
+| `dry_run` | boolean | No | Teach mode: preview all command blocks without modifying Packet Tracer. |
 
 ### `pt_run_cli_bulk`
 
@@ -726,3 +738,19 @@ Capture the current live workspace and persist it to disk under the given name. 
 | Parameter | Type | Required | Description |
 | --- | --- | --- | --- |
 | `name` | string | Yes | Snapshot identifier; only letters, digits, dot, dash, underscore. |
+
+## Canvas Authoring
+
+### `pt_batch_build`
+
+High-speed single-turn topology builder: optionally clear the canvas, place multiple devices in one batched IPC call, install hardware modules, wire all links in one batched IPC call, configure PC/Server static IPs or DHCP, and wait concurrently for all routers/switches to boot. Dramatically faster than calling pt_add_device / pt_create_link / pt_set_pc one by one.
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `clear_first` | boolean | No | If true, wipe the canvas via File > New before placing devices. (default: `false`) |
+| `devices` | object[] | No | Devices to place in a single batched IPC call. (default: `[]`) |
+| `modules` | object[] | No | Hardware modules to install after placing devices and before wiring links. (default: `[]`) |
+| `links` | object[] | No | Physical links to wire in a single batched IPC call. (default: `[]`) |
+| `pcs` | object[] | No | End-host static IP or DHCP settings to apply. (default: `[]`) |
+| `wait_for_cli` | boolean | No | If true (default), wait concurrently for all placed routers/switches to reach an IOS prompt. (default: `true`) |
+| `dry_run` | boolean | No | Teach mode: preview the build plan without touching Packet Tracer. |
