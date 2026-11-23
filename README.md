@@ -27,24 +27,50 @@ A student-focused **Model Context Protocol (MCP)** server for **Cisco Packet Tra
 
 ### 1. Start the MCP server
 
-**Option A — Prebuilt binary (no Bun required):** download the executable for your OS and `stu-mcp-bridge.pts` from [GitHub Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest), then run it.
+**Option A — Prebuilt binary (easiest, no Bun required):**
+
+Download `stu-mcp-bridge.pts` and the binary for your OS from [GitHub Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest), then start it:
+
+```bash
+# Linux (x64)
+chmod +x stu-packet-tracer-mcp-linux-x64
+./stu-packet-tracer-mcp-linux-x64
+
+# macOS (Apple Silicon)
+chmod +x stu-packet-tracer-mcp-darwin-arm64
+xattr -d com.apple.quarantine stu-packet-tracer-mcp-darwin-arm64   # only if macOS flags the unsigned binary
+./stu-packet-tracer-mcp-darwin-arm64
+```
+
+```powershell
+# Windows (PowerShell)
+.\stu-packet-tracer-mcp-windows-x64.exe
+```
 
 **Option B — From source with [Bun](https://bun.sh) (`>= 1.2`):**
 
 ```bash
+# Install Bun if you don't have it yet (macOS / Linux):
+curl -fsSL https://bun.sh/install | bash
+
+# Clone, install dependencies, and start:
 git clone https://github.com/fuih/stu-packet-tracer-mcp.git
 cd stu-packet-tracer-mcp
 bun install
 bun start
 ```
 
-### 2. Connect Cisco Packet Tracer 9
+> *(Using a **stdio** client like Claude Desktop? Skip running `bun start` manually — the client starts the server automatically via `--stdio` so port `54321` stays free.)*
 
-1. Open Cisco Packet Tracer 9 and load your `.pkt` lab file (or start from a blank canvas).
-2. Add **`stu-mcp-bridge.pts`** (from [Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest) or `extension/dist/stu-mcp-bridge.pts`) via **Extensions -> Scripting -> Configure PT Script Modules -> Add**.
-3. Open **Extensions -> Scripting -> Student MCP Bridge**. The monitor header turns green (**Connected**) with the **`V1`** badge and automatically displays your active AI agent name once connected.
+### 2. Install & start the Packet Tracer 9 extension
 
-Full installation and packaging details are in [docs/QUICKSTART.md](docs/QUICKSTART.md) and [docs/BUILD_EXTENSION.md](docs/BUILD_EXTENSION.md).
+1. Open **Cisco Packet Tracer 9** and load your `.pkt` lab file (or start from a blank canvas).
+2. Go to **Extensions -> Scripting -> Configure PT Script Modules...**
+3. Click **Add** and select **`stu-mcp-bridge.pts`** (from [GitHub Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest) or `extension/dist/stu-mcp-bridge.pts`).
+4. Select **Student MCP Bridge** in the list and click **Start** (or open **Extensions -> Scripting -> Student MCP Bridge**).
+5. The monitor header turns green (**Connected**) with the **`V1`** badge and automatically displays your active AI agent name once connected.
+
+Full setup and `.pts` packaging guides are in [docs/QUICKSTART.md](docs/QUICKSTART.md) and [docs/BUILD_EXTENSION.md](docs/BUILD_EXTENSION.md).
 
 The Streamable HTTP MCP endpoint is available at:
 
@@ -62,7 +88,7 @@ http://127.0.0.1:39001/mcp
 <details open>
 <summary><b>Claude Code</b> (CLI, recommended)</summary>
 
-One command, no JSON editing:
+Start the server (Step 1), then run one command — no JSON editing:
 
 ```bash
 claude mcp add --transport http stu-packet-tracer http://127.0.0.1:39001/mcp
@@ -75,7 +101,7 @@ Verify inside Claude Code with `/mcp`: you should see `stu-packet-tracer` with a
 <details>
 <summary><b>Antigravity</b></summary>
 
-Add to `mcp_config.json` (Streamable HTTP — requires `bun start` running):
+Add to `mcp_config.json` (Streamable HTTP — requires the server running from Step 1):
 
 ```json
 {
@@ -87,14 +113,14 @@ Add to `mcp_config.json` (Streamable HTTP — requires `bun start` running):
 }
 ```
 
-Or auto-launch via **stdio** (no separate terminal needed):
+Or auto-launch via **stdio** (stop any standalone server first so port `54321` is free):
 
 ```json
 {
   "mcpServers": {
     "stu-packet-tracer": {
       "command": "bun",
-      "args": ["run", "/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"]
+      "args": ["run", "/absolute/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"]
     }
   }
 }
@@ -105,14 +131,16 @@ Or auto-launch via **stdio** (no separate terminal needed):
 <details>
 <summary><b>Claude Desktop</b></summary>
 
+> Claude Desktop launches the server automatically via **stdio** — stop any standalone terminal instance first so bridge port `54321` is free.
+
 Add to your Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, or `~/.config/Claude/claude_desktop_config.json` on Linux):
 
 ```json
 {
   "mcpServers": {
     "stu-packet-tracer": {
-      "command": "bun",
-      "args": ["run", "/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"],
+      "command": "/absolute/path/to/stu-packet-tracer-mcp",
+      "args": ["--stdio"],
       "env": {
         "STU_PT_OUTPUT_DIR": "./stu-pt-output"
       }
@@ -121,12 +149,14 @@ Add to your Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json`
 }
 ```
 
+*(Running from source instead of the standalone binary? Set `"command": "bun"` and `"args": ["run", "/absolute/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"]`.)*
+
 </details>
 
 <details>
 <summary><b>Cursor</b></summary>
 
-Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project):
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project), with the server running from Step 1:
 
 ```json
 {
@@ -143,7 +173,7 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project):
 <details>
 <summary><b>VS Code</b> (Copilot / Continue / Cline)</summary>
 
-Add to `.vscode/mcp.json` inside your workspace:
+Add to `.vscode/mcp.json` inside your workspace, with the server running from Step 1:
 
 ```json
 {
@@ -161,7 +191,7 @@ Add to `.vscode/mcp.json` inside your workspace:
 <details>
 <summary><b>Gemini CLI</b></summary>
 
-Add to `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
+Add to `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project), with the server running from Step 1:
 
 ```json
 {
@@ -178,7 +208,7 @@ Add to `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
 <details>
 <summary><b>Codex CLI</b></summary>
 
-Add to `~/.codex/config.toml`:
+Add to `~/.codex/config.toml`, with the server running from Step 1:
 
 ```toml
 [mcp_servers.stu-packet-tracer]
@@ -214,7 +244,7 @@ curl -sS -X POST http://127.0.0.1:39001/mcp \
 
 </details>
 
-For stdio setups, standalone binary paths, and optional environment variables, see [docs/CLIENTS.md](docs/CLIENTS.md).
+For full stdio & standalone binary snippets for every client, see [docs/CLIENTS.md](docs/CLIENTS.md).
 
 ## Compile to a Standalone Binary
 

@@ -13,8 +13,8 @@ Solutions to the most common Packet Tracer 9, bridge, CLI, and rendering issues.
 
 **Fixes:**
 1. Confirm **Cisco Packet Tracer 9** is open and the **Student MCP Bridge** window is visible (**Extensions -> Scripting -> Student MCP Bridge**).
-2. Click **Start** in the extension window if it is paused, and verify the Server URL is `http://127.0.0.1:54321`.
-3. If you set `STU_PT_BRIDGE_TOKEN` on the server, paste the exact same token into the extension's **Bridge Token** input box and reconnect.
+2. Press `s` (or click **start**) in the extension window if polling is paused, then click **config** (or press `u`) and verify `--url` is `http://127.0.0.1:54321`.
+3. If you set `STU_PT_BRIDGE_TOKEN` on the server, open **config** (`u`), paste the exact same token into `--token`, and reconnect.
 4. Make sure no older `packet-tracer-mcp` or second `stu-packet-tracer-mcp` instance is already holding port `54321` (see Section 7).
 
 ---
@@ -103,10 +103,12 @@ Stop-Process -Id <PID>
 Or run on alternate ports by setting environment variables:
 
 ```bash
-BRIDGE_PORT=54322 MCP_PORT=39002 bunx stu-packet-tracer-mcp
+BRIDGE_PORT=54322 MCP_PORT=39002 bun start
+# or with a standalone binary:
+BRIDGE_PORT=54322 MCP_PORT=39002 ./stu-packet-tracer-mcp
 ```
 
-*(If you change `BRIDGE_PORT`, update the Server URL inside the Packet Tracer extension window to match `http://127.0.0.1:54322`.)*
+*(If you change `BRIDGE_PORT`, click **config** (`u`) inside the Packet Tracer extension window and update `--url` to `http://127.0.0.1:54322`.)*
 
 ---
 

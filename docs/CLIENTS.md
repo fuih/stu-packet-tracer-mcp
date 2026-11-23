@@ -3,9 +3,29 @@
 Copy-paste configurations for popular AI clients.
 
 > [!IMPORTANT]
-> **Prefer `stdio` mode** whenever your client supports it — the client starts and stops the MCP server automatically, so you do not have to keep a separate terminal open. Use **HTTP mode** if you want to share a single running server across multiple clients or scripts.
+> Only **one** instance of `stu-packet-tracer-mcp` can listen on bridge port `54321` at a time.
 >
-> Only **one** instance of `stu-packet-tracer-mcp` can listen on bridge port `54321` at a time. Stop any other running instance before switching clients.
+> - **Streamable HTTP mode** (`http://127.0.0.1:39001/mcp`): start the server yourself (`./stu-packet-tracer-mcp` or `bun start`) and connect one or more clients to `http://127.0.0.1:39001/mcp`.
+> - **Stdio mode** (`--stdio`): the AI client spawns and stops the server automatically — stop any standalone terminal instance first so port `54321` is free.
+
+Every stdio example below uses a downloaded binary path (`/absolute/path/to/stu-packet-tracer-mcp` — grab it from [GitHub Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest)). If you cloned the repo and run from source with Bun instead, swap `"command"` and `"args"` to:
+
+```json
+"command": "bun",
+"args": ["run", "/absolute/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"]
+```
+
+---
+
+## Claude Code (CLI)
+
+Start the server (`./stu-packet-tracer-mcp` or `bun start`), then run:
+
+```bash
+claude mcp add --transport http stu-packet-tracer http://127.0.0.1:39001/mcp
+```
+
+Verify inside Claude Code with `/mcp` — `stu-packet-tracer` should appear with all **72 tools**.
 
 ---
 
@@ -23,8 +43,8 @@ Config file location:
 {
   "mcpServers": {
     "stu-packet-tracer": {
-      "command": "bunx",
-      "args": ["stu-packet-tracer-mcp", "--stdio"],
+      "command": "/absolute/path/to/stu-packet-tracer-mcp",
+      "args": ["--stdio"],
       "env": {
         "STU_PT_OUTPUT_DIR": "./stu-pt-output"
       }
@@ -41,22 +61,9 @@ Config file location:
 
 Add to your Antigravity MCP configuration (`mcp_config.json`):
 
-### Stdio (Recommended)
-
-```json
-{
-  "mcpServers": {
-    "stu-packet-tracer": {
-      "command": "bunx",
-      "args": ["stu-packet-tracer-mcp", "--stdio"]
-    }
-  }
-}
-```
-
 ### Streamable HTTP
 
-Start the server in a terminal first (`bunx stu-packet-tracer-mcp`), then configure:
+Start the server first (`./stu-packet-tracer-mcp` or `bun start`), then configure:
 
 ```json
 {
@@ -68,28 +75,28 @@ Start the server in a terminal first (`bunx stu-packet-tracer-mcp`), then config
 }
 ```
 
+### Stdio
+
+```json
+{
+  "mcpServers": {
+    "stu-packet-tracer": {
+      "command": "/absolute/path/to/stu-packet-tracer-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
 ---
 
 ## Cursor
 
 Config file location: `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project).
 
-### Stdio (Recommended)
-
-```json
-{
-  "mcpServers": {
-    "stu-packet-tracer": {
-      "command": "bunx",
-      "args": ["stu-packet-tracer-mcp", "--stdio"]
-    }
-  }
-}
-```
-
 ### Streamable HTTP
 
-Start `bunx stu-packet-tracer-mcp` first, then configure:
+Start the server first, then configure:
 
 ```json
 {
@@ -101,29 +108,28 @@ Start `bunx stu-packet-tracer-mcp` first, then configure:
 }
 ```
 
----
-
-## VS Code (GitHub Copilot MCP)
-
-Config file location: `.vscode/mcp.json` in your workspace (or VS Code User Settings).
-
-### Stdio (Recommended)
+### Stdio
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "stu-packet-tracer": {
-      "type": "stdio",
-      "command": "bunx",
-      "args": ["stu-packet-tracer-mcp", "--stdio"]
+      "command": "/absolute/path/to/stu-packet-tracer-mcp",
+      "args": ["--stdio"]
     }
   }
 }
 ```
 
+---
+
+## VS Code (GitHub Copilot / Continue / Cline)
+
+Config file location: `.vscode/mcp.json` in your workspace (or VS Code User Settings).
+
 ### Streamable HTTP
 
-Start `bunx stu-packet-tracer-mcp` first, then configure:
+Start the server first, then configure:
 
 ```json
 {
@@ -136,28 +142,29 @@ Start `bunx stu-packet-tracer-mcp` first, then configure:
 }
 ```
 
+### Stdio
+
+```json
+{
+  "servers": {
+    "stu-packet-tracer": {
+      "type": "stdio",
+      "command": "/absolute/path/to/stu-packet-tracer-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
 ---
 
 ## Gemini CLI
 
 Config file location: `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project).
 
-### Stdio (Recommended)
-
-```json
-{
-  "mcpServers": {
-    "stu-packet-tracer": {
-      "command": "bunx",
-      "args": ["stu-packet-tracer-mcp", "--stdio"]
-    }
-  }
-}
-```
-
 ### Streamable HTTP
 
-Start `bunx stu-packet-tracer-mcp` first, then configure:
+Start the server first, then configure:
 
 ```json
 {
@@ -169,19 +176,38 @@ Start `bunx stu-packet-tracer-mcp` first, then configure:
 }
 ```
 
----
-
-## Using a Standalone Compiled Binary
-
-If you downloaded a prebuilt binary from GitHub Releases (no Bun install required), replace `"command"` and `"args"` with the binary path:
+### Stdio
 
 ```json
 {
   "mcpServers": {
     "stu-packet-tracer": {
-      "command": "/path/to/stu-packet-tracer-mcp",
+      "command": "/absolute/path/to/stu-packet-tracer-mcp",
       "args": ["--stdio"]
     }
   }
 }
+```
+
+---
+
+## Codex CLI
+
+Config file location: `~/.codex/config.toml`.
+
+### Streamable HTTP
+
+Start the server first, then configure:
+
+```toml
+[mcp_servers.stu-packet-tracer]
+url = "http://127.0.0.1:39001/mcp"
+```
+
+### Stdio
+
+```toml
+[mcp_servers.stu-packet-tracer]
+command = "/absolute/path/to/stu-packet-tracer-mcp"
+args = ["--stdio"]
 ```
