@@ -11,27 +11,27 @@ Every terminal renderer (`pt_capture_cli`, `pt_capture_pc_command`, `pt_render_t
 ### `pt-classic` — Cisco Packet Tracer CLI Tab
 Emulates the Packet Tracer 9 device dialog window with the `Physical | Config | CLI | Attributes` tab bar and classic light console surface.
 
-![pt-classic theme](../test/golden/route-pt-classic.svg)
+![pt-classic theme](assets/preview-pt-classic.svg)
 
 ### `dark` — Modern Dark Terminal
 Dark slate surface with macOS-style window dots and crisp syntax accents — great for slides, Markdown docs, and digital submissions.
 
-![dark theme](../test/golden/route-dark.svg)
+![dark theme](assets/preview-dark.svg)
 
 ### `putty` — Classic PuTTY / SSH Console
 Classic black background with light gray monospace text and green highlight accents.
 
-![putty theme](../test/golden/route-putty.svg)
+![putty theme](assets/preview-putty.svg)
 
 ### `high-contrast` — Print-Ready Black & White
 Maximum legibility on white paper and black-and-white laser printers — zero wasted toner.
 
-![high-contrast theme](../test/golden/route-high-contrast.svg)
+![high-contrast theme](assets/preview-high-contrast.svg)
 
 ### `pc-cmd` — Packet Tracer PC / Server Command Prompt
 Windows-style Command Prompt chrome automatically used by `pt_capture_pc_command` for `ping`, `ipconfig`, `tracert`, and `arp -a`.
 
-![pc-cmd theme](../test/golden/ping-pc-cmd.svg)
+![pc-cmd theme](assets/preview-pc-cmd.svg)
 
 ---
 

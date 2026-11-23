@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="740" height="782" viewBox="0 0 740 782" role="img" aria-label="HUB - CLI">
+  <rect x="0.5" y="0.5" width="739" height="781" rx="0" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/>
+  <rect x="0" y="0" width="740" height="30" fill="#FFFFFF"/>
+  <line x1="0" y1="30" x2="740" y2="30" stroke="#000000" stroke-width="1.5"/>
+  <text x="14" y="20" font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="12.5" font-weight="700" fill="#000000">HUB - CLI</text>
+  <g font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="14" fill="#000000">
+    <text x="16" y="58" xml:space="preserve"><tspan font-weight="700">HUB&gt;</tspan>enable</text>
+    <text x="16" y="77" xml:space="preserve"><tspan font-weight="700">HUB#</tspan>show ip interface brief</text>
+    <text x="16" y="96" xml:space="preserve">Interface              IP-Address      OK? Method Status                Protocol</text>
+    <text x="16" y="115" xml:space="preserve">GigabitEthernet0/0     10.0.0.1        YES manual up                    up</text>
+    <text x="16" y="134" xml:space="preserve">GigabitEthernet0/1     10.0.0.5        YES manual up                    up</text>
+    <text x="16" y="153" xml:space="preserve">GigabitEthernet0/2     10.0.0.9        YES manual up                    up</text>
+    <text x="16" y="172" xml:space="preserve">Vlan1                  unassigned      YES unset  <tspan font-weight="700">administratively down</tspan> down</text>
+    <text x="16" y="191" xml:space="preserve"></text>
+    <text x="16" y="210" xml:space="preserve"><tspan font-weight="700">HUB#</tspan>show ip ospf neighbor</text>
+    <text x="16" y="229" xml:space="preserve"></text>
+    <text x="16" y="248" xml:space="preserve">Neighbor ID     Pri   State           Dead Time   Address         Interface</text>
+    <text x="16" y="267" xml:space="preserve">192.168.0.1       0   FULL/  -        00:00:35    10.0.0.2        GigabitEthernet0/0</text>
+    <text x="16" y="286" xml:space="preserve">192.168.1.1       0   FULL/  -        00:00:36    10.0.0.6        GigabitEthernet0/1</text>
+    <text x="16" y="305" xml:space="preserve">192.168.2.1       0   FULL/  -        00:00:38    10.0.0.10       GigabitEthernet0/2</text>
+    <text x="16" y="324" xml:space="preserve"></text>
+    <text x="16" y="343" xml:space="preserve"><tspan font-weight="700">HUB#</tspan>show ip route</text>
+    <text x="16" y="362" xml:space="preserve">Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP</text>
+    <text x="16" y="381" xml:space="preserve">       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area</text>
+    <text x="16" y="400" xml:space="preserve">       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2</text>
+    <text x="16" y="419" xml:space="preserve">       E1 - OSPF external type 1, E2 - OSPF external type 2, E - EGP</text>
+    <text x="16" y="438" xml:space="preserve">       i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2, ia - IS-IS inter area</text>
+    <text x="16" y="457" xml:space="preserve">       * - candidate default, U - per-user static route, o - ODR</text>
+    <text x="16" y="476" xml:space="preserve">       P - periodic downloaded static route</text>
+    <text x="16" y="495" xml:space="preserve"></text>
+    <text x="16" y="514" xml:space="preserve">Gateway of last resort is not set</text>
+    <text x="16" y="533" xml:space="preserve"></text>
+    <text x="16" y="552" xml:space="preserve">     10.0.0.0/8 is variably subnetted, 6 subnets, 2 masks</text>
+    <text x="16" y="571" xml:space="preserve"><tspan font-weight="700">C</tspan>       10.0.0.0/30 is directly connected, GigabitEthernet0/0</text>
+    <text x="16" y="590" xml:space="preserve"><tspan font-weight="700">L</tspan>       10.0.0.1/32 is directly connected, GigabitEthernet0/0</text>
+    <text x="16" y="609" xml:space="preserve"><tspan font-weight="700">C</tspan>       10.0.0.4/30 is directly connected, GigabitEthernet0/1</text>
+    <text x="16" y="628" xml:space="preserve"><tspan font-weight="700">L</tspan>       10.0.0.5/32 is directly connected, GigabitEthernet0/1</text>
+    <text x="16" y="647" xml:space="preserve"><tspan font-weight="700">C</tspan>       10.0.0.8/30 is directly connected, GigabitEthernet0/2</text>
+    <text x="16" y="666" xml:space="preserve"><tspan font-weight="700">L</tspan>       10.0.0.9/32 is directly connected, GigabitEthernet0/2</text>
+    <text x="16" y="685" xml:space="preserve"><tspan font-weight="700">O</tspan>    192.168.0.0/24 [110/2] via 10.0.0.2, 00:00:57, GigabitEthernet0/0</text>
+    <text x="16" y="704" xml:space="preserve"><tspan font-weight="700">O</tspan>    192.168.1.0/24 [110/2] via 10.0.0.6, 00:00:57, GigabitEthernet0/1</text>
+    <text x="16" y="723" xml:space="preserve"><tspan font-weight="700">O</tspan>    192.168.2.0/24 [110/2] via 10.0.0.10, 00:00:57, GigabitEthernet0/2</text>
+    <text x="16" y="742" xml:space="preserve"></text>
+    <text x="16" y="761" xml:space="preserve"><tspan font-weight="700">HUB#</tspan></text>
+  </g>
+</svg>

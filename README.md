@@ -141,11 +141,11 @@ stu-pt-output/
 
 | Theme | Preview | Best For |
 |---|---|---|
-| `pt-classic` | ![pt-classic theme](test/golden/route-pt-classic.svg) | Authentic Cisco Packet Tracer CLI tab look |
-| `dark` | ![dark theme](test/golden/route-dark.svg) | Modern dark slides, web docs, dark-mode notes |
-| `putty` | ![putty theme](test/golden/route-putty.svg) | Classic SSH / PuTTY console captures |
-| `high-contrast` | ![high-contrast theme](test/golden/route-high-contrast.svg) | Printed university reports & black-and-white PDFs |
-| `pc-cmd` | ![pc-cmd theme](test/golden/ping-pc-cmd.svg) | Packet Tracer PC / Server Command Prompt outputs |
+| `pt-classic` | ![pt-classic theme](docs/assets/preview-pt-classic.svg) | Authentic Cisco Packet Tracer CLI tab look |
+| `dark` | ![dark theme](docs/assets/preview-dark.svg) | Modern dark slides, web docs, dark-mode notes |
+| `putty` | ![putty theme](docs/assets/preview-putty.svg) | Classic SSH / PuTTY console captures |
+| `high-contrast` | ![high-contrast theme](docs/assets/preview-high-contrast.svg) | Printed university reports & black-and-white PDFs |
+| `pc-cmd` | ![pc-cmd theme](docs/assets/preview-pc-cmd.svg) | Packet Tracer PC / Server Command Prompt outputs |
 
 See [docs/REPORTS.md](docs/REPORTS.md) for full theming, callout annotations, and `pt_export_report` examples.
 

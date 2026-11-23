@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="741" height="812" viewBox="0 0 741 812" role="img" aria-label="HUB - CLI">
+  <defs>
+    <linearGradient id="pt-btn-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F7F7F7"/>
+      <stop offset="100%" stop-color="#E4E4E4"/>
+    </linearGradient>
+  </defs>
+  <rect x="0.5" y="0.5" width="740" height="811" rx="6" fill="#F0F0F0" stroke="#C8C8C8" stroke-width="1"/>
+  <rect x="12" y="38" width="717" height="742" fill="#FFFFFF" stroke="#DCDCDC" stroke-width="1"/>
+  <rect x="12" y="12" width="86.4" height="26" fill="#F3F3F3"/>
+  <text x="55.2" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Physical</text>
+  <rect x="100.4" y="12" width="70.8" height="26" fill="#F3F3F3"/>
+  <text x="135.8" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Config</text>
+  <rect x="173.2" y="10" width="58" height="29" fill="#FFFFFF"/>
+  <text x="202.2" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#111111">CLI</text>
+  <rect x="179.2" y="34" width="46" height="3" fill="#0F2B6B"/>
+  <rect x="233.2" y="12" width="102" height="26" fill="#F3F3F3"/>
+  <text x="284.2" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Attributes</text>
+  <text x="370.5" y="61" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="13" fill="#111111">IOS Command Line Interface</text>
+  <rect x="24" y="74" width="693" height="662" fill="#FFFFFF" stroke="#000000" stroke-width="2"/>
+  <rect x="701" y="75" width="15" height="660" fill="#F2F2F2"/>
+  <line x1="701" y1="75" x2="701" y2="735" stroke="#D4D4D4" stroke-width="1"/>
+  <rect x="701.5" y="75.5" width="14" height="14" fill="#F0F0F0"/>
+  <polygon points="708.5,80 705,85 712,85" fill="#444444"/>
+  <rect x="701.5" y="720.5" width="14" height="14" fill="#F0F0F0"/>
+  <polygon points="708.5,730 705,725 712,725" fill="#444444"/>
+  <rect x="703" y="327" width="11" height="391" rx="1" fill="#CFCFCF"/>
+  <g font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="13" fill="#000000">
+    <text x="32" y="93" xml:space="preserve">HUB&gt;enable</text>
+    <text x="32" y="110" xml:space="preserve">HUB#show ip interface brief</text>
+    <text x="32" y="127" xml:space="preserve">Interface              IP-Address      OK? Method Status                Protocol</text>
+    <text x="32" y="144" xml:space="preserve">GigabitEthernet0/0     10.0.0.1        YES manual up                    up</text>
+    <text x="32" y="161" xml:space="preserve">GigabitEthernet0/1     10.0.0.5        YES manual up                    up</text>
+    <text x="32" y="178" xml:space="preserve">GigabitEthernet0/2     10.0.0.9        YES manual up                    up</text>
+    <text x="32" y="195" xml:space="preserve">Vlan1                  unassigned      YES unset  administratively down down</text>
+    <text x="32" y="212" xml:space="preserve"></text>
+    <text x="32" y="229" xml:space="preserve">HUB#show ip ospf neighbor</text>
+    <text x="32" y="246" xml:space="preserve"></text>
+    <text x="32" y="263" xml:space="preserve">Neighbor ID     Pri   State           Dead Time   Address         Interface</text>
+    <text x="32" y="280" xml:space="preserve">192.168.0.1       0   FULL/  -        00:00:35    10.0.0.2        GigabitEthernet0/0</text>
+    <text x="32" y="297" xml:space="preserve">192.168.1.1       0   FULL/  -        00:00:36    10.0.0.6        GigabitEthernet0/1</text>
+    <text x="32" y="314" xml:space="preserve">192.168.2.1       0   FULL/  -        00:00:38    10.0.0.10       GigabitEthernet0/2</text>
+    <text x="32" y="331" xml:space="preserve"></text>
+    <text x="32" y="348" xml:space="preserve">HUB#show ip route</text>
+    <text x="32" y="365" xml:space="preserve">Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP</text>
+    <text x="32" y="382" xml:space="preserve">       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area</text>
+    <text x="32" y="399" xml:space="preserve">       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2</text>
+    <text x="32" y="416" xml:space="preserve">       E1 - OSPF external type 1, E2 - OSPF external type 2, E - EGP</text>
+    <text x="32" y="433" xml:space="preserve">       i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2, ia - IS-IS inter area</text>
+    <text x="32" y="450" xml:space="preserve">       * - candidate default, U - per-user static route, o - ODR</text>
+    <text x="32" y="467" xml:space="preserve">       P - periodic downloaded static route</text>
+    <text x="32" y="484" xml:space="preserve"></text>
+    <text x="32" y="501" xml:space="preserve">Gateway of last resort is not set</text>
+    <text x="32" y="518" xml:space="preserve"></text>
+    <text x="32" y="535" xml:space="preserve">     10.0.0.0/8 is variably subnetted, 6 subnets, 2 masks</text>
+    <text x="32" y="552" xml:space="preserve">C       10.0.0.0/30 is directly connected, GigabitEthernet0/0</text>
+    <text x="32" y="569" xml:space="preserve">L       10.0.0.1/32 is directly connected, GigabitEthernet0/0</text>
+    <text x="32" y="586" xml:space="preserve">C       10.0.0.4/30 is directly connected, GigabitEthernet0/1</text>
+    <text x="32" y="603" xml:space="preserve">L       10.0.0.5/32 is directly connected, GigabitEthernet0/1</text>
+    <text x="32" y="620" xml:space="preserve">C       10.0.0.8/30 is directly connected, GigabitEthernet0/2</text>
+    <text x="32" y="637" xml:space="preserve">L       10.0.0.9/32 is directly connected, GigabitEthernet0/2</text>
+    <text x="32" y="654" xml:space="preserve">O    192.168.0.0/24 [110/2] via 10.0.0.2, 00:00:57, GigabitEthernet0/0</text>
+    <text x="32" y="671" xml:space="preserve">O    192.168.1.0/24 [110/2] via 10.0.0.6, 00:00:57, GigabitEthernet0/1</text>
+    <text x="32" y="688" xml:space="preserve">O    192.168.2.0/24 [110/2] via 10.0.0.10, 00:00:57, GigabitEthernet0/2</text>
+    <text x="32" y="705" xml:space="preserve"></text>
+    <text x="32" y="722" xml:space="preserve">HUB#</text>
+  </g>
+  <line x1="64.3" y1="711" x2="64.3" y2="724" stroke="#000000" stroke-width="1.2"/>
+  <rect x="561" y="746" width="74" height="25" rx="3" fill="url(#pt-btn-grad)" stroke="#B5B5B5" stroke-width="1"/>
+  <text x="598" y="763" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#111111">Copy</text>
+  <rect x="643" y="746" width="74" height="25" rx="3" fill="url(#pt-btn-grad)" stroke="#B5B5B5" stroke-width="1"/>
+  <text x="680" y="763" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#111111">Paste</text>
+  <rect x="14" y="789" width="13" height="13" rx="1.5" fill="#FFFFFF" stroke="#9B9B9B" stroke-width="1"/>
+  <text x="33" y="800" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="11.5" fill="#222222">Top</text>
+</svg>

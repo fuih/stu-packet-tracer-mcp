@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="584" height="1055" viewBox="0 0 584 1055" role="img" aria-label="PC3_1 — Command Prompt">
+  <rect x="0.5" y="0.5" width="583" height="1054" rx="6" fill="#F0F0F0" stroke="#C8C8C8" stroke-width="1"/>
+  <rect x="12" y="38" width="560" height="987" fill="#F5F5F5" stroke="#D0D0D0" stroke-width="1"/>
+  <rect x="12" y="12" width="86.4" height="26" fill="#F3F3F3"/>
+  <text x="55.2" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Physical</text>
+  <rect x="100.4" y="12" width="70.8" height="26" fill="#F3F3F3"/>
+  <text x="135.8" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Config</text>
+  <rect x="173.2" y="10" width="78.6" height="29" fill="#F5F5F5"/>
+  <text x="212.5" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#111111">Desktop</text>
+  <rect x="179.2" y="34" width="66.6" height="3" fill="#0F2B6B"/>
+  <rect x="253.79999999999998" y="12" width="109.8" height="26" fill="#F3F3F3"/>
+  <text x="308.7" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Programming</text>
+  <rect x="365.59999999999997" y="12" width="102" height="26" fill="#F3F3F3"/>
+  <text x="416.59999999999997" y="29" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#222222">Attributes</text>
+  <rect x="22" y="48" width="540" height="27" fill="#0000FF"/>
+  <text x="28" y="66" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12.5" fill="#E8ECFF">Command Prompt</text>
+  <rect x="532" y="50" width="28" height="23" fill="#EAEAEA" stroke="#9A9A9A" stroke-width="1"/>
+  <text x="546" y="66" text-anchor="middle" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="12" fill="#111111">X</text>
+  <rect x="22" y="81" width="540" height="934" fill="#000000" stroke="#7A7A7A" stroke-width="1"/>
+  <rect x="547" y="81" width="15" height="934" fill="#F2F2F2"/>
+  <line x1="547" y1="81" x2="547" y2="1015" stroke="#D4D4D4" stroke-width="1"/>
+  <rect x="547.5" y="81.5" width="14" height="14" fill="#F0F0F0"/>
+  <polygon points="554.5,86 551,91 558,91" fill="#444444"/>
+  <rect x="547.5" y="1000.5" width="14" height="14" fill="#F0F0F0"/>
+  <polygon points="554.5,1010 551,1005 558,1005" fill="#444444"/>
+  <rect x="549" y="438" width="11" height="560" rx="1" fill="#CFCFCF"/>
+  <g font-family="'DejaVu Sans Mono', 'Cascadia Mono', 'Consolas', 'Courier New', monospace" font-size="13" fill="#EAEAEA">
+    <text x="30" y="100" xml:space="preserve">C:\&gt;ipconfig</text>
+    <text x="30" y="117" xml:space="preserve"></text>
+    <text x="30" y="134" xml:space="preserve">FastEthernet0 Connection:(default port)</text>
+    <text x="30" y="151" xml:space="preserve"></text>
+    <text x="30" y="168" xml:space="preserve">   Connection-specific DNS Suffix..:</text>
+    <text x="30" y="185" xml:space="preserve">   Link-local IPv6 Address.........: FE80::201:97FF:FE04:C500</text>
+    <text x="30" y="202" xml:space="preserve">   IPv6 Address....................: ::</text>
+    <text x="30" y="219" xml:space="preserve">   IPv4 Address....................: 192.168.2.7</text>
+    <text x="30" y="236" xml:space="preserve">   Subnet Mask.....................: 255.255.255.0</text>
+    <text x="30" y="253" xml:space="preserve">   Default Gateway.................: 192.168.2.1</text>
+    <text x="30" y="270" xml:space="preserve"></text>
+    <text x="30" y="287" xml:space="preserve">C:\&gt;ping 192.168.0.6</text>
+    <text x="30" y="304" xml:space="preserve"></text>
+    <text x="30" y="321" xml:space="preserve">Pinging 192.168.0.6 with 32 bytes of data:</text>
+    <text x="30" y="338" xml:space="preserve"></text>
+    <text x="30" y="355" xml:space="preserve">Reply from 192.168.0.6: bytes=32 time=16ms TTL=125</text>
+    <text x="30" y="372" xml:space="preserve">Reply from 192.168.0.6: bytes=32 time=20ms TTL=125</text>
+    <text x="30" y="389" xml:space="preserve">Reply from 192.168.0.6: bytes=32 time=11ms TTL=125</text>
+    <text x="30" y="406" xml:space="preserve">Reply from 192.168.0.6: bytes=32 time=14ms TTL=125</text>
+    <text x="30" y="423" xml:space="preserve"></text>
+    <text x="30" y="440" xml:space="preserve">Ping statistics for 192.168.0.6:</text>
+    <text x="30" y="457" xml:space="preserve">    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),</text>
+    <text x="30" y="474" xml:space="preserve">Approximate round trip times in milli-seconds:</text>
+    <text x="30" y="491" xml:space="preserve">    Minimum = 11ms, Maximum = 20ms, Average = 15ms</text>
+    <text x="30" y="508" xml:space="preserve"></text>
+    <text x="30" y="525" xml:space="preserve">C:\&gt;ping 192.168.0.100</text>
+    <text x="30" y="542" xml:space="preserve"></text>
+    <text x="30" y="559" xml:space="preserve">Pinging 192.168.0.100 with 32 bytes of data:</text>
+    <text x="30" y="576" xml:space="preserve"></text>
+    <text x="30" y="593" xml:space="preserve">Request timed out.</text>
+    <text x="30" y="610" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time=76ms TTL=125</text>
+    <text x="30" y="627" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time&lt;1ms TTL=125</text>
+    <text x="30" y="644" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time=11ms TTL=125</text>
+    <text x="30" y="661" xml:space="preserve"></text>
+    <text x="30" y="678" xml:space="preserve">Ping statistics for 192.168.0.100:</text>
+    <text x="30" y="695" xml:space="preserve">    Packets: Sent = 4, Received = 3, Lost = 1 (25% loss),</text>
+    <text x="30" y="712" xml:space="preserve">Approximate round trip times in milli-seconds:</text>
+    <text x="30" y="729" xml:space="preserve">    Minimum = 0ms, Maximum = 76ms, Average = 29ms</text>
+    <text x="30" y="746" xml:space="preserve"></text>
+    <text x="30" y="763" xml:space="preserve">C:\&gt;ping 192.168.0.100</text>
+    <text x="30" y="780" xml:space="preserve"></text>
+    <text x="30" y="797" xml:space="preserve">Pinging 192.168.0.100 with 32 bytes of data:</text>
+    <text x="30" y="814" xml:space="preserve"></text>
+    <text x="30" y="831" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time=31ms TTL=125</text>
+    <text x="30" y="848" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time=25ms TTL=125</text>
+    <text x="30" y="865" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time&lt;1ms TTL=125</text>
+    <text x="30" y="882" xml:space="preserve">Reply from 192.168.0.100: bytes=32 time=2ms TTL=125</text>
+    <text x="30" y="899" xml:space="preserve"></text>
+    <text x="30" y="916" xml:space="preserve">Ping statistics for 192.168.0.100:</text>
+    <text x="30" y="933" xml:space="preserve">    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),</text>
+    <text x="30" y="950" xml:space="preserve">Approximate round trip times in milli-seconds:</text>
+    <text x="30" y="967" xml:space="preserve">    Minimum = 0ms, Maximum = 31ms, Average = 14ms</text>
+    <text x="30" y="984" xml:space="preserve"></text>
+    <text x="30" y="1001" xml:space="preserve">C:\&gt;</text>
+  </g>
+  <rect x="14" y="1033" width="13" height="13" rx="1.5" fill="#FFFFFF" stroke="#9B9B9B" stroke-width="1"/>
+  <text x="33" y="1044" font-family="'DejaVu Sans', 'Segoe UI', Arial, Helvetica, sans-serif" font-size="11.5" fill="#222222">Top</text>
+</svg>
