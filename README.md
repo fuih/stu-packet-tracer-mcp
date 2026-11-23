@@ -16,10 +16,37 @@ A student-focused **Model Context Protocol (MCP)** server for **Cisco Packet Tra
   - 5 built-in themes: `pt-classic` (Packet Tracer CLI tab chrome), `dark`, `putty`, `high-contrast` (print-ready), and `pc-cmd` (Windows Command Prompt).
 - **One-command lab report export** (`pt_export_report`) — collects the live topology screenshot, addressing table, ping matrix, IOS CLI captures, PC command outputs, and Before/After fault-fix sections into **Microsoft Word (`.docx`)**, self-contained **print-ready HTML**, and **Markdown**.
 - **Student workflow & troubleshooting tools** — `pt_addressing_table`, `pt_ping_matrix` (with automatic ARP warm-up so first pings do not false-fail), `pt_check_lab` objective verifier, `pt_diagnose_faults` (study hints / fix commands / live auto-fix for common lab mistakes), `pt_trace_path` (bidirectional forward & return hop analyzer), `pt_break_lab` (exam practice fault injector), `pt_explain_output` (offline IOS output explainer), `pt_subnet_calc` (IPv4 + VLSM planner), and `pt_lab_template` (10 university networking labs).
+- **High-speed batched IPC engine** (`pt_batch_build`, `pt_run_cli_batch`, single-round-trip `pt_run_cli`, batched `pt_auto_layout`, parallel-wave `pt_ping_matrix`) — collapses multi-step lab operations from dozens of sequential IPC round-trips into 1 batched call (~`26–117 ms` live in PT 9.0.1).
 - **Resilient Cisco IOS CLI engine** — automatically clears `[yes/no]` initial configuration dialogs, handles `--More--` pagination cleanly, prevents eaten first characters, and tracks prompt modes (`user`, `privileged`, `config`, `config-if`, etc.).
 - **Reliable Bridge Protocol v1** — correlation IDs per request, long-poll `/v1/next`, strict single-flight serialization, late-result dropping, origin validation, optional shared token (`STU_PT_BRIDGE_TOKEN`), and automatic extension reconnect.
 - **Teach Mode (`STU_PT_TEACH_MODE=1` / `dry_run: true`)** — off by default; turn it on to study step-by-step IOS commands and explanations without modifying the canvas.
 - **100% English & strict schemas** — all 72 tools enforce strict input validation and provide "Did you mean ...?" device suggestions on typos.
+
+---
+
+## Performance & Live Benchmarks (PT 9.0.1)
+
+Compared to naive one-device-at-a-time IPC polling (where each CLI command, layout move, or ping pair triggers multiple sequential round-trips and blocks on synchronous UI telemetry), `stu-packet-tracer-mcp` batches operations at both the MCP and Packet Tracer IPC layers:
+
+- **Single-round-trip `pt_run_cli`** (`execCliOneShotJs`): merges `--More--` clearance, prompt preparation, command execution, and fast-path output capture into **1 IPC call** (down from 3–5) with short-TTL device (`5 s`) and model (`15 s`) caches.
+- **Batched multi-device tools**: `pt_batch_build` (clear, add devices, install modules, wire links, configure endpoints, and boot-wait concurrently in **1 MCP call**), `pt_run_cli_batch` (multi-device IOS config + `write memory` in **1 IPC call**), and batched `pt_auto_layout` (`moveDevicesBatchJs`).
+- **Parallel-wave `pt_ping_matrix` with smart ARP retry**: runs one active ping per source host in parallel waves and only retries pairs that experience partial ARP drops (instead of running `2 × N × (N - 1)` sequential pings).
+- **Off-critical-path Bridge telemetry**: `extension/src/bridge.js` debounces HUD telemetry (`800 ms`) after returning `/v1/result` so rapid tool bursts are never stalled by DOM updates.
+
+Measured live on **Cisco Packet Tracer 9.0.1** against an **8-device OSPF lab** (`2` routers, `2` switches, `4` PCs = `12` directed ping pairs):
+
+| Operation | Previous Sequential Flow | `stu-packet-tracer-mcp` (Batched) | Live PT 9.0.1 Result |
+|---|---:|---:|---|
+| `pt_run_cli_batch` (4 devices + `wr`) | `12,097 ms` *(8+ round-trips)* | **`26 ms`** *(1 IPC call)* | `4/4` configured & saved |
+| `pt_auto_layout` (8 devices) | `14,999 ms` *(8+ moves)* | **`117 ms`** *(1 batch move)* | `8/8` positioned |
+| `pt_run_cli` (`R1 show ip route`) | `6,098 ms` *(3–5 round-trips)* | **`42 ms`** *(1 IPC call)* | Full clean output |
+| `pt_run_cli` (`R2 show ip int br`) | `9,895 ms` *(3–5 round-trips)* | **`33 ms`** *(1 IPC call + cache)* | Full clean output |
+| `pt_addressing_table` (8 devices) | — | **`52 ms`** *(1 snapshot)* | Complete IP/mask/GW table |
+| `pt_ping_matrix` (4 PCs = 12 pairs) | `66–71 s` *(24 sequential pings)* | **`12.5 s`** *(parallel waves + smart ARP)* | `12/12` passed (`4/4` every pair) |
+| Extension HUD actions (`wr all`, `power on`, telemetry) | Synchronous per command | **`4–5 ms`** *(debounced off-path)* | Non-blocking live monitor |
+
+> [!TIP]
+> Keep the **Student MCP Bridge** window unminimized (tiled or partially visible is enough). Qt WebEngine throttles minimized webviews to ~1–2 s per tick — which is why collapsing multi-round-trip workflows into single batched IPC calls makes such a large real-world difference (see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#9-commands-feel-slow-12s-per-call-instead-of-30100ms)).
 
 ---
 
