@@ -167,7 +167,7 @@ if (checkOnly) {
     console.error("[gen-tools-doc] docs/TOOLS.md is missing. Run: bun run docs:tools");
     process.exit(1);
   }
-  const existing = readFileSync(outPath, "utf8");
+  const existing = readFileSync(outPath, "utf8").replace(/\r\n/g, "\n");
   if (existing !== generated) {
     console.error("[gen-tools-doc] docs/TOOLS.md is out of date. Run: bun run docs:tools");
     process.exit(1);

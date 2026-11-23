@@ -45,7 +45,7 @@ function checkGolden(name: string, actual: string): void {
     mkdirSync(GOLDEN_DIR, { recursive: true });
     writeFileSync(goldenPath, actual, "utf8");
   }
-  const expected = readFileSync(goldenPath, "utf8");
+  const expected = readFileSync(goldenPath, "utf8").replace(/\r\n/g, "\n");
   expect(actual).toBe(expected);
 }
 
