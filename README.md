@@ -25,29 +25,69 @@ A student-focused **Model Context Protocol (MCP)** server for **Cisco Packet Tra
 
 ## 5-Minute Quick Start
 
-### 1. Install Bun
+### 1. Start the MCP server
 
-```bash
-# Linux / macOS
-curl -fsSL https://bun.sh/install | bash
-```
+**Option A — Prebuilt binary (no Bun required):** download the executable for your OS and `stu-mcp-bridge.pts` from [GitHub Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest), then run it.
 
-```powershell
-# Windows (PowerShell)
-powershell -c "irm bun.sh/install.ps1 | iex"
-```
-
-### 2. Install and add the MCP server to your AI client
-
-Clone the repository and install dependencies with Bun:
+**Option B — From source with [Bun](https://bun.sh) (`>= 1.2`):**
 
 ```bash
 git clone https://github.com/fuih/stu-packet-tracer-mcp.git
 cd stu-packet-tracer-mcp
 bun install
+bun start
 ```
 
-Add this to your AI client configuration (example for **Claude Desktop**, **Antigravity**, or **Cursor** — see [docs/CLIENTS.md](docs/CLIENTS.md) for all clients and HTTP mode):
+### 2. Connect Cisco Packet Tracer 9
+
+1. Open Cisco Packet Tracer 9 and load your `.pkt` lab file (or start from a blank canvas).
+2. Add **`stu-mcp-bridge.pts`** (from [Releases](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest) or `extension/dist/stu-mcp-bridge.pts`) via **Extensions -> Scripting -> Configure PT Script Modules -> Add**.
+3. Open **Extensions -> Scripting -> Student MCP Bridge**. The monitor header turns green (**Connected**) with the **`V1`** badge and automatically displays your active AI agent name once connected.
+
+Full installation and packaging details are in [docs/QUICKSTART.md](docs/QUICKSTART.md) and [docs/BUILD_EXTENSION.md](docs/BUILD_EXTENSION.md).
+
+The Streamable HTTP MCP endpoint is available at:
+
+```text
+http://127.0.0.1:39001/mcp
+```
+
+> [!NOTE]
+> **Why `:39001`?** Cisco Packet Tracer 9 already listens on `:39000` for its native Cisco-signed IPC. Using `:39001` prevents port collisions and keeps the MCP server clearly separate. Override it anytime with `STU_PT_MCP_PORT` (or `MCP_PORT`).
+
+---
+
+## Connect an MCP Client
+
+<details open>
+<summary><b>Claude Code</b> (CLI, recommended)</summary>
+
+One command, no JSON editing:
+
+```bash
+claude mcp add --transport http stu-packet-tracer http://127.0.0.1:39001/mcp
+```
+
+Verify inside Claude Code with `/mcp`: you should see `stu-packet-tracer` with all **72 tools**.
+
+</details>
+
+<details>
+<summary><b>Antigravity</b></summary>
+
+Add to `mcp_config.json` (Streamable HTTP — requires `bun start` running):
+
+```json
+{
+  "mcpServers": {
+    "stu-packet-tracer": {
+      "serverUrl": "http://127.0.0.1:39001/mcp"
+    }
+  }
+}
+```
+
+Or auto-launch via **stdio** (no separate terminal needed):
 
 ```json
 {
@@ -60,21 +100,132 @@ Add this to your AI client configuration (example for **Claude Desktop**, **Anti
 }
 ```
 
-*(If published via npm, replace `"command"`/`"args"` with `"command": "bunx"`, `"args": ["stu-packet-tracer-mcp", "--stdio"]`.)*
+</details>
 
-### 3. Connect Cisco Packet Tracer 9
+<details>
+<summary><b>Claude Desktop</b></summary>
 
-1. Open Cisco Packet Tracer 9 and load your `.pkt` lab file (or start from a blank workspace).
-2. Load the **Student MCP Bridge** Script Module (`extension/dist/stu-mcp-bridge.pts` — see [docs/BUILD_EXTENSION.md](docs/BUILD_EXTENSION.md) if packaging from `extension/src/`, or use the paste-in fallback in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)).
-3. Open **Extensions -> Scripting -> Student MCP Bridge**. The monitor header turns green (**Connected**) with the **`V1`** badge and automatically displays your active AI agent name (such as `Antigravity` or `Claude Desktop`) once your client connects.
+Add to your Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, or `~/.config/Claude/claude_desktop_config.json` on Linux):
 
-### 4. Verify the connection
+```json
+{
+  "mcpServers": {
+    "stu-packet-tracer": {
+      "command": "bun",
+      "args": ["run", "/path/to/stu-packet-tracer-mcp/src/index.ts", "--stdio"],
+      "env": {
+        "STU_PT_OUTPUT_DIR": "./stu-pt-output"
+      }
+    }
+  }
+}
+```
 
-Ask your AI assistant:
+</details>
 
-> "Check `pt_bridge_status` and list the devices in my current Packet Tracer lab."
+<details>
+<summary><b>Cursor</b></summary>
 
-For full step-by-step setup instructions, read [docs/QUICKSTART.md](docs/QUICKSTART.md).
+Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project):
+
+```json
+{
+  "mcpServers": {
+    "stu-packet-tracer": {
+      "url": "http://127.0.0.1:39001/mcp"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>VS Code</b> (Copilot / Continue / Cline)</summary>
+
+Add to `.vscode/mcp.json` inside your workspace:
+
+```json
+{
+  "servers": {
+    "stu-packet-tracer": {
+      "type": "http",
+      "url": "http://127.0.0.1:39001/mcp"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>Gemini CLI</b></summary>
+
+Add to `~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
+
+```json
+{
+  "mcpServers": {
+    "stu-packet-tracer": {
+      "httpUrl": "http://127.0.0.1:39001/mcp"
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>Codex CLI</b></summary>
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.stu-packet-tracer]
+url = "http://127.0.0.1:39001/mcp"
+```
+
+</details>
+
+<details>
+<summary><b>Smoke test with <code>curl</code></b> (no client needed)</summary>
+
+Check the Packet Tracer bridge directly:
+
+```bash
+curl -s http://127.0.0.1:54321/status
+```
+
+Or run a full Streamable HTTP MCP handshake and invoke `pt_bridge_status`:
+
+```bash
+SID=$(curl -sS -D - -o /dev/null -X POST http://127.0.0.1:39001/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl-smoke","version":"0.1"}}}' \
+  | grep -i '^mcp-session-id:' | tr -d '\r' | awk '{print $2}')
+
+curl -sS -X POST http://127.0.0.1:39001/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: $SID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pt_bridge_status","arguments":{}}}'
+```
+
+</details>
+
+For stdio setups, standalone binary paths, and optional environment variables, see [docs/CLIENTS.md](docs/CLIENTS.md).
+
+## Compile to a Standalone Binary
+
+```bash
+bun run build
+./dist/stu-packet-tracer-mcp          # Streamable HTTP on :39001
+./dist/stu-packet-tracer-mcp --stdio  # Stdio transport
+./dist/stu-packet-tracer-mcp --doctor # Environment & port diagnostics
+```
+
+Prebuilt Linux, macOS, and Windows executables (plus `stu-mcp-bridge.pts` and `SHA256SUMS.txt`) are also attached to every [GitHub Release](https://github.com/fuih/stu-packet-tracer-mcp/releases/latest).
 
 ---
 
